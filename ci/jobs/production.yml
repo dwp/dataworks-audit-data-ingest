@@ -1,0 +1,15 @@
+jobs:
+  - name: production
+    max_in_flight: 1
+    plan:
+      - get: dataworks-audit-data-ingest
+        trigger: false
+      - .: (( inject meta.plan.create-crown-credentials ))
+      - .: (( inject meta.plan.deploy-code ))
+        config:
+          params:
+            SSH_PRIVATE_KEY: ((crown.private_key))
+      - .: (( inject meta.plan.kinit ))
+        config:
+          params:
+            SSH_PRIVATE_KEY: ((crown.private_key))

@@ -1,0 +1,75 @@
+meta:
+  plan:
+    kinit:
+      task: kinit
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli-ubuntu.repository))
+            tag: ((docker-awscli-ubuntu.version))
+        run:
+          path: sh
+          args:
+            - -exc
+            - |
+              cp -R ssh-credentials ~/.ssh
+              ssh -o StrictHostKeyChecking=no myserver-local "sudo su - aws-audit -c 'kinit -kt /home/aws-audit/aws-audit.keytab aws-audit@DW'"
+        inputs:
+          - name: ssh-credentials
+
+    deploy-code:
+      task: deploy-code
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli-ubuntu.repository))
+            tag: ((docker-awscli-ubuntu.version))
+        run:
+          path: sh
+          args:
+            - -exc
+            - |
+              cp -R ssh-credentials ~/.ssh
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest/audit_data_ingest.py myserver-local:/tmp/
+        inputs:
+          - name: ssh-credentials
+          - name: dataworks-audit-data-ingest
+
+    create-crown-credentials:
+      task: create-crown-credentials
+      attempts: 15
+      input_mapping:
+        git-repo: dataworks-audit-data-ingest
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli-ubuntu.repository))
+            version: ((docker-awscli-ubuntu.version))
+            tag: ((docker-awscli-ubuntu.version))
+        inputs:
+          - name: git-repo
+        outputs:
+          - name: ssh-credentials
+        params:
+          PRIVATE_KEY: ((crown.private_key))
+        run:
+          path: sh
+          dir: ssh-credentials
+          args:
+            - -exc
+            - |
+              cat <<EOF> id_rsa
+              $PRIVATE_KEY
+              EOF
+              cat <<EOF> ./config
+              Host *
+                  User concourse
+                  StrictHostKeyChecking no
+              EOF
+              chmod 400 id_rsa
