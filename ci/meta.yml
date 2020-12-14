@@ -73,9 +73,9 @@ meta:
         image_resource:
           type: docker-image
           source:
-            repository: ((docker-awscli-ubuntu.repository))
-            version: ((docker-awscli-ubuntu.version))
-            tag: ((docker-awscli-ubuntu.version))
+            repository: ((docker-awscli.repository))
+            version: ((docker-awscli.version))
+            tag: ((docker-awscli.version))
         inputs:
           - name: git-repo
         outputs:
@@ -95,3 +95,31 @@ meta:
                   StrictHostKeyChecking no
               EOF
               chmod 400 id_rsa
+
+              # obtain some form of AWS creds, lay down to file
+              export AWS_ROLE_ARN=arn:aws:iam::$AWS_ACCOUNT:role/ci
+              source /assume-role
+
+              cat <<EOF> aws-session/credentials
+              [default]
+              aws_access_key_id = $AWS_ACCESS_KEY_ID
+              aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
+              aws_session_token = $AWS_SESSION_TOKEN
+
+              EOF
+
+              unset AWS_ROLE_ARN
+              unset AWS_ACCESS_KEY_ID
+              unset AWS_SECRET_ACCESS_KEY
+              unset AWS_SESSION_TOKEN
+
+#              export AWS_ROLE_ARN=arn:aws:iam::$ACCOUNT:role/ucrs_kms_decrypt
+#              source /assume-role
+#
+#              cat <<EOF>> aws-session/credentials
+#              [decrypt]
+#              aws_access_key_id = $AWS_ACCESS_KEY_ID
+#              aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
+#              aws_session_token = $AWS_SESSION_TOKEN
+#
+#              EOF

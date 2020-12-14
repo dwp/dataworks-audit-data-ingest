@@ -8,6 +8,7 @@ jobs:
         config:
           params:
             SSH_PRIVATE_KEY: ((crown.private_key))
+            AWS_ACCOUNT: ((audit-ingest.aws_prod_account))
 
       - .: (( inject meta.plan.deploy-code ))
         config:
