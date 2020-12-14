@@ -34,18 +34,18 @@ def filter_date(hdfsdir, start_date):
     return dirdate > start_date
 
 
-def main(start_date, src_hdfs_dir, tmp_dir, s3_bucket, s3_prefix, hsm_key_id):
+def main(start_date, src_hdfs_dir, tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region):
     dates = get_auditlog_list(start_date)
     for day in dates:
         pass
 	#copy_files_from_hdfs(day, tmp_dir)
-    encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id)
+    encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region)
         
     #json_files = get_json_files(src_hdfs_dir)
     #encrypt_and_upload_json_files(json_files, tmp_dir, s3_bucket, s3_prefix)
 
 
-def encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id):
+def encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region):
     hsm_key = get_hsm_key()    
     for root, dirs, files in os.walk(tmp_dir):
         for name in files:
@@ -64,7 +64,7 @@ def encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id):
             s3_object_metadata = {x-amz-meta-iv: b64encode(hsm_key_cipher.nonce),
                           x-amz-meta-ciphertext: b64encode(encrypted_data_key),
                           x-amz-meta-datakeyencryptionkeyid: hsm_key_id}
-            upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix)
+            upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region)
             
 
 def get_auditlog_list(start_date):
@@ -99,11 +99,11 @@ def today():
     return str(date.today())
 
 
-def upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix):
+def upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region):
     # Upload files to S3
     encrypted_file_name = pjoin(tmp_dir, file)
     logger.info(f"Uploading {encrypted_file_name} to S3 ")
-    s3_client = get_client("s3")
+    s3_client = get_client("s3", aws_default_region)
     with open(encrypted_file_name, "rb") as data:
         s3_client.upload_fileobj(
             data,
@@ -113,8 +113,8 @@ def upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix):
         )
 
 
-def get_client(service_name):
-    return boto3.client(service_name)
+def get_client(service_name, aws_default_region):
+    return boto3.client(service_name, region_name=aws_default_region)
 
 
 def get_hsm_key():
@@ -201,6 +201,12 @@ if __name__ == "__main__":
         required=True,
         help="HSM Key ID in 'cloudhsm:privkeyid:pubkeyid' format",
     )
+    parser.add_argument(
+        "--aws-default-region",
+        required=False,
+        default='eu-west-2',
+        help="The Default AWS Region this script will be ran in",
+    )
 
     args = parser.parse_args()
     tmp_dir = args.tmp
@@ -208,11 +214,12 @@ if __name__ == "__main__":
     s3_bucket = args.s3_publish_bucket
     s3_prefix = args.s3_prefix
     hsm_key_id = args.hsm_key_id
+    aws_default_region = args.aws_default_region
 
     try:
         clean_dir(tmp_dir)
         start_date = find_start_date()
-        main(start_date, src_hdfs_dir, tmp_dir, s3_bucket, s3_prefix, hsm_key_id)
+        main(start_date, src_hdfs_dir, tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region)
     except Exception as ex:
         logger.error("Error processing files")
         raise ex

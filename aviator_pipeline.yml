@@ -24,7 +24,7 @@ jobs:
         - -exc
         - |
           cat <<EOF> id_rsa
-          $PRIVATE_KEY
+          $SSH_PRIVATE_KEY
           EOF
           cat <<EOF> ./config
           Host *
@@ -54,7 +54,7 @@ jobs:
         - -exc
         - |
           cp -R ssh-credentials ~/.ssh
-          scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest/audit_data_ingest.py $EDGENODE_HOSTNAME:/tmp/
+          scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest/audit_data_ingest.py concourse@$EDGENODE_HOSTNAME:/tmp/
         path: sh
     task: deploy-code
   - config:
@@ -74,7 +74,7 @@ jobs:
         - -exc
         - |
           cp -R ssh-credentials ~/.ssh
-          ssh -o StrictHostKeyChecking=no $EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'kinit -kt /home/$EDGENODE_USERNAME/$EDGENODE_USERNAME.keytab $EDGENODE_USERNAME@DW'"
+          ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'kinit -kt /home/$EDGENODE_USERNAME/$EDGENODE_USERNAME.keytab $EDGENODE_USERNAME@DW'"
         path: sh
     task: kinit
   - config:
@@ -87,29 +87,32 @@ jobs:
       - name: ssh-credentials
       - name: dataworks-audit-data-ingest
       params:
+        AWS_DEFAULT_REGION: ((audit-ingest.aws_default_region))
         CLOUDHSM_KEY_ID: ((audit-ingest.cloudhsm_key_id))
         EDGENODE_HOSTNAME: ((audit-ingest.edgenode_hostname))
         EDGENODE_USERNAME: ((audit-ingest.edgenode_username))
         S3_BUCKET_ID: ((audit-ingest.s3_bucket_id))
         S3_PREFIX: ((audit-ingest.s3_prefix))
+        SRC_HDFS_DIR: ((audit-ingest.src_hdfs_dir))
       platform: linux
       run:
         args:
         - -exc
         - |
           cp -R ssh-credentials ~/.ssh
-          ssh -o StrictHostKeyChecking=no $EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c '/tmp/audit_data_ingest.py \
-              --src $SOURCE_FOLDER \
-              --s3_bucket_id $S3_BUCKET_ID \
-              --s3_prefix $S3_PREFIX \
-              --cloudhsm_key_id $CLOUDHSM_KEY_ID"
+          export AWS_DEFAULT_REGION
+          ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'AWS_DEFAULT_REGION=((audit-ingest.aws_default_region)) python3 /tmp/audit_data_ingest.py \
+              --src-hdfs-dir $SRC_HDFS_DIR \
+              --s3-publish-bucket $S3_BUCKET_ID \
+              --s3-prefix $S3_PREFIX \
+              --hsm-key-id $CLOUDHSM_KEY_ID'"
         path: sh
     task: execute-code
 resources:
 - check_every: 5m
   name: dataworks-audit-data-ingest
   source:
-    branch: master
+    branch: dw5219_create_concourse_pipelines
     repository: dwp/dataworks-audit-data-ingest
     uri: https://github.com/dwp/dataworks-audit-data-ingest.git
   type: git
