@@ -54,6 +54,9 @@ meta:
             - -exc
             - |
               cp -R ssh-credentials ~/.ssh
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no aws-session/credentials concourse@$EDGENODE_HOSTNAME:/tmp/
+              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "mkdir -p ~/.aws/"
+              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "cp /tmp/credentials /home/concourse/.aws/"
               ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'python3 /tmp/audit_data_ingest.py \
                   --src-hdfs-dir $SRC_HDFS_DIR \
                   --s3-publish-bucket $S3_BUCKET_ID \
@@ -61,13 +64,12 @@ meta:
                   --hsm-key-id $CLOUDHSM_KEY_ID'"
         inputs:
           - name: ssh-credentials
+          - name: aws-session
           - name: dataworks-audit-data-ingest
 
-    create-crown-credentials:
-      task: create-crown-credentials
+    create-ssh-credentials:
+      task: create-ssh-credentials
       attempts: 15
-      input_mapping:
-        git-repo: dataworks-audit-data-ingest
       config:
         platform: linux
         image_resource:
@@ -76,8 +78,6 @@ meta:
             repository: ((docker-awscli.repository))
             version: ((docker-awscli.version))
             tag: ((docker-awscli.version))
-        inputs:
-          - name: git-repo
         outputs:
           - name: ssh-credentials
         run:
@@ -96,6 +96,25 @@ meta:
               EOF
               chmod 400 id_rsa
 
+    create-aws-credentials:
+      task: create-aws-credentials
+      attempts: 15
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli.repository))
+            version: ((docker-awscli.version))
+            tag: ((docker-awscli.version))
+        outputs:
+          - name: aws-session
+        run:
+          path: sh
+          dir: aws-session
+          args:
+            - -exc
+            - |
               export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
               export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
               export AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
@@ -104,7 +123,7 @@ meta:
               export AWS_ROLE_ARN=arn:aws:iam::$AWS_ACCOUNT:role/ci
               source /assume-role
 
-              cat <<EOF> aws-session/credentials
+              cat <<EOF> credentials
               [default]
               aws_access_key_id = $AWS_ACCESS_KEY_ID
               aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
