@@ -5,11 +5,25 @@ jobs:
       - get: dataworks-audit-data-ingest
         trigger: false
       - .: (( inject meta.plan.create-crown-credentials ))
+        config:
+          params:
+            SSH_PRIVATE_KEY: ((crown.private_key))
       - .: (( inject meta.plan.deploy-code ))
         config:
           params:
-            SSH_PRIVATE_KEY: ((crown.private_key))
+            EDGENODE_HOSTNAME: ((audit-ingest.edgenode_hostname))
       - .: (( inject meta.plan.kinit ))
         config:
           params:
-            SSH_PRIVATE_KEY: ((crown.private_key))
+            EDGENODE_HOSTNAME: ((audit-ingest.edgenode_hostname))
+            EDGENODE_USERNAME: ((audit-ingest.edgenode_username))
+
+      - .: (( inject meta.plan.execute-code ))
+        config:
+          params:
+            EDGENODE_HOSTNAME: ((audit-ingest.edgenode_hostname))
+            EDGENODE_USERNAME: ((audit-ingest.edgenode_username))
+            CLOUDHSM_KEY_ID: ((audit-ingest.cloudhsm_key_id))
+            S3_BUCKET_ID: ((audit-ingest.s3_publish_bucket))
+            S3_PREFIX: ((audit-ingest.s3_prefix))
+            SRC_HDFS_DIR: ((audit-ingest.src_hdfs_dir))

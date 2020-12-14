@@ -1,8 +1,10 @@
 import argparse
+import datetime
 import glob
 import logging
 import os
 import shutil
+import subprocess
 import zlib
 from base64 import b64encode
 from datetime import date
@@ -18,19 +20,86 @@ DATAKEYENCRYPTIONKEYID = "datakeyencryptionkeyid"
 DATA_KEY = get_random_bytes(16)
 NONCE = get_random_bytes(12)
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
+logger = logging.getLogger("audit-log-exporter")
 
 
-def main(src_dir, tmp_dir, s3_bucket, s3_prefix):
-    json_files = get_json_files(src_dir)
-    encrypt_and_upload_json_files(json_files, tmp_dir, s3_bucket, s3_prefix)
+def filter_date(hdfsdir, start_date):
+    datestr = hdfsdir.split('/')[-1]
+    try:
+        dirdate = datetime.datetime.strptime(datestr, "%Y-%m-%d")
+    except ValueError:
+        logger.warn(f"Skipping {hdfsdir} as it isn't a dated directory")
+        return False
+    return dirdate > start_date
 
+
+def main(start_date, src_hdfs_dir, tmp_dir, s3_bucket, s3_prefix, hsm_key_id):
+    dates = get_auditlog_list(start_date)
+    for day in dates:
+        pass
+	#copy_files_from_hdfs(day, tmp_dir)
+    encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id)
+        
+    #json_files = get_json_files(src_hdfs_dir)
+    #encrypt_and_upload_json_files(json_files, tmp_dir, s3_bucket, s3_prefix)
+
+
+def encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id):
+    hsm_key = get_hsm_key()    
+    for root, dirs, files in os.walk(tmp_dir):
+        for name in files:
+            data_key_nonce = Crypto.Random.get_random_bytes(12)
+            data_key = Crypto.Random.get_random_bytes(16)
+            data_key_cipher = AES.new(key, AES.MODE_GCM, data_key_nonce)
+            in_file = os.path.join(root, name)
+            out_file = in_file + ".enc"
+            with open(in_file, "rb") as fin, open(out_file, "wb") as fout:
+                # Compress data before encrypting it
+                compressed_data = zlib.compress(fin.read())
+                fout.write(data_key_cipher.encrypt(compressed_data))
+            hsm_key_nonce = Crypto.Random.get_random_bytes(12)
+            hsm_key_cipher = AES.new(hsm_key, AES.MODE_GCM, hsm_key_nonce)
+            encrypted_data_key = hsm_key_cipher.enrypt(data_key)
+            s3_object_metadata = {x-amz-meta-iv: b64encode(hsm_key_cipher.nonce),
+                          x-amz-meta-ciphertext: b64encode(encrypted_data_key),
+                          x-amz-meta-datakeyencryptionkeyid: hsm_key_id}
+            upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix)
+            
+
+def get_auditlog_list(start_date):
+    logger.info("Finding all auditlogs to process")
+    if start_date is not None:
+        logger.info(f"Excluding entries older than {start_date}")
+    try:
+        process = subprocess.run(["hdfs", "dfs", "-ls", "-C", "/etl/uc/auditlog"], check=True, stdout=subprocess.PIPE, universal_newlines=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Couldn't list auditlog entries in HDFS: {e}")
+        raise e
+    # skip the last line of output as it's always blank
+    alldates = process.stdout.split('\n')[0:-1]
+    if start_date is None:
+       dates = alldates
+    else:
+       dates = filter(lambda hdfsdir: filter_date(hdfsdir, start_date), alldates)
+    return dates
+
+def copy_files_from_hdfs(hdfs_dir, tmp_dir):
+    logger.info(f"Retrieving {hdfs_dir} from HDFS")
+    os.mkdir(tmp_dir)
+    try:
+        hdfs_dir = "/etl/uc/auditlog/2020-12-11"
+        process = subprocess.run(["hdfs", "dfs", "-copyToLocal", hdfs_dir, tmp_dir], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Couldn't copy files from HDFS: {e}")
+        raise e
+    
 
 def today():
     return str(date.today())
 
 
-def upload_to_s3(tmp_dir, file, s3_object_metadata, s3_bucket, s3_prefix):
+def upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix):
     # Upload files to S3
     encrypted_file_name = pjoin(tmp_dir, file)
     logger.info(f"Uploading {encrypted_file_name} to S3 ")
@@ -50,6 +119,7 @@ def get_client(service_name):
 
 def get_hsm_key():
     ssm_client = get_client("ssm")
+    # TODO: This needs to return an object with both the public key material as well as the "cloudhsm:262152,262151" identifier string needed by DKS
     return ssm_client.get_parameter(Name="ucfs.development.businessdata.hsmkey.pub")
 
 
@@ -80,63 +150,69 @@ def encrypt_and_upload_json_files(json_files, tmp_dir, s3_bucket, s3_prefix):
             fout.write(json_file_cipher.encrypt(compressed_data))
         upload_to_s3(tmp_dir, encrypted_json_file_name, s3_object_metadata, s3_bucket, s3_prefix)
 
-
-def get_json_files(src_dir):
-    logger.info("Searching source directory for JSON files")
-    json_files = glob.glob(pjoin(src_dir, "*.json"))
-    try:
-        os.stat(json_files[0])
-        logger.info(f"Found {len(json_files)} JSON files")
-    except BaseException as ex:
-        logger.error("No JSON files found in source directory")
-        raise ex
-    return json_files
-
-
 def clean_dir(tmp_dir):
-    if os.path.exists(tmp_dir):
-        logger.info("CLeaning temp_dir")
-        shutil.rmtree(tmp_dir)
+    pass
+    #if os.path.exists(tmp_dir):
+    #    logger.info("CLeaning temp_dir")
+    #    shutil.rmtree(tmp_dir)
+
+
+def find_start_date():
+    progress_file = "/home/aws-audit/audit-data-export-progress.log"
+    try:
+        with open(progress_file, "r") as f:
+           start_datestr = f.read().strip('\n')
+           start_date = datetime.datetime.strptime(start_datestr, '%Y-%m-%d')
+    except ValueError:
+        logger.error(f"Couldn't parse date in {progress_file}, it should be in %Y-%m-%d format")
+        raise ValueError
+    except IOError:
+        logger.warn(f"No progress file found at {progress_file}; processing all dates")
+
+    return start_date
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Copy UC audit data to S3")
 
     parser.add_argument(
-        "-s",
-        "--src",
+        "--src-hdfs-dir",
         required=True,
-        help="Local Source Directory",
+        help="HDFS Source Directory",
     )
     parser.add_argument(
-        "-s3b",
-        "--s3_publish_bucket",
+        "--s3-publish-bucket",
         required=True,
         help="S3 bucket to copy the processed data to",
     )
     parser.add_argument(
-        "-s3p",
-        "--s3_prefix",
+        "--s3-prefix",
         required=True,
         help="S3 prefix to copy the processed data to",
     )
     parser.add_argument(
-        "-t",
         "--tmp",
         required=False,
-        default="./tmp/",
+        default="/data/auditlogs/tmp",
         help="Local Temporary Directory",
+    )
+    parser.add_argument(
+        "--hsm-key-id",
+        required=True,
+        help="HSM Key ID in 'cloudhsm:privkeyid:pubkeyid' format",
     )
 
     args = parser.parse_args()
     tmp_dir = args.tmp
-    src_dir = args.src
+    src_hdfs_dir = args.src_hdfs_dir
     s3_bucket = args.s3_publish_bucket
     s3_prefix = args.s3_prefix
+    hsm_key_id = args.hsm_key_id
 
     try:
         clean_dir(tmp_dir)
-        main(src_dir, tmp_dir, s3_bucket, s3_prefix)
+        start_date = find_start_date()
+        main(start_date, src_hdfs_dir, tmp_dir, s3_bucket, s3_prefix, hsm_key_id)
     except Exception as ex:
         logger.error("Error processing files")
         raise ex

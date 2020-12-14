@@ -15,7 +15,7 @@ meta:
             - -exc
             - |
               cp -R ssh-credentials ~/.ssh
-              ssh -o StrictHostKeyChecking=no myserver-local "sudo su - aws-audit -c 'kinit -kt /home/aws-audit/aws-audit.keytab aws-audit@DW'"
+              ssh -o StrictHostKeyChecking=no $EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'kinit -kt /home/$EDGENODE_USERNAME/$EDGENODE_USERNAME.keytab $EDGENODE_USERNAME@DW'"
         inputs:
           - name: ssh-credentials
 
@@ -34,7 +34,31 @@ meta:
             - -exc
             - |
               cp -R ssh-credentials ~/.ssh
-              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest/audit_data_ingest.py myserver-local:/tmp/
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest/audit_data_ingest.py $EDGENODE_HOSTNAME:/tmp/
+        inputs:
+          - name: ssh-credentials
+          - name: dataworks-audit-data-ingest
+
+    execute-code:
+      task: execute-code
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli-ubuntu.repository))
+            tag: ((docker-awscli-ubuntu.version))
+        run:
+          path: sh
+          args:
+            - -exc
+            - |
+              cp -R ssh-credentials ~/.ssh
+              ssh -o StrictHostKeyChecking=no $EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c '/tmp/audit_data_ingest.py \
+                  --src-hdfs-dir $SRC_HDFS_DIR \
+                  --s3-publish-bucket $S3_PUBLISH_BUCKET \
+                  --s3-prefix $S3_PREFIX \
+                  --hsm-key-id $CLOUDHSM_KEY_ID"
         inputs:
           - name: ssh-credentials
           - name: dataworks-audit-data-ingest
@@ -56,8 +80,6 @@ meta:
           - name: git-repo
         outputs:
           - name: ssh-credentials
-        params:
-          PRIVATE_KEY: ((crown.private_key))
         run:
           path: sh
           dir: ssh-credentials

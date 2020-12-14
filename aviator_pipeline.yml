@@ -1,0 +1,116 @@
+jobs:
+- max_in_flight: 1
+  name: production
+  plan:
+  - get: dataworks-audit-data-ingest
+    trigger: false
+  - attempts: 15
+    config:
+      image_resource:
+        source:
+          repository: ((docker-awscli-ubuntu.repository))
+          tag: ((docker-awscli-ubuntu.version))
+          version: ((docker-awscli-ubuntu.version))
+        type: docker-image
+      inputs:
+      - name: git-repo
+      outputs:
+      - name: ssh-credentials
+      params:
+        SSH_PRIVATE_KEY: ((crown.private_key))
+      platform: linux
+      run:
+        args:
+        - -exc
+        - |
+          cat <<EOF> id_rsa
+          $PRIVATE_KEY
+          EOF
+          cat <<EOF> ./config
+          Host *
+              User concourse
+              StrictHostKeyChecking no
+          EOF
+          chmod 400 id_rsa
+        dir: ssh-credentials
+        path: sh
+    input_mapping:
+      git-repo: dataworks-audit-data-ingest
+    task: create-crown-credentials
+  - config:
+      image_resource:
+        source:
+          repository: ((docker-awscli-ubuntu.repository))
+          tag: ((docker-awscli-ubuntu.version))
+        type: docker-image
+      inputs:
+      - name: ssh-credentials
+      - name: dataworks-audit-data-ingest
+      params:
+        EDGENODE_HOSTNAME: ((audit-ingest.edgenode_hostname))
+      platform: linux
+      run:
+        args:
+        - -exc
+        - |
+          cp -R ssh-credentials ~/.ssh
+          scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest/audit_data_ingest.py $EDGENODE_HOSTNAME:/tmp/
+        path: sh
+    task: deploy-code
+  - config:
+      image_resource:
+        source:
+          repository: ((docker-awscli-ubuntu.repository))
+          tag: ((docker-awscli-ubuntu.version))
+        type: docker-image
+      inputs:
+      - name: ssh-credentials
+      params:
+        EDGENODE_HOSTNAME: ((audit-ingest.edgenode_hostname))
+        EDGENODE_USERNAME: ((audit-ingest.edgenode_username))
+      platform: linux
+      run:
+        args:
+        - -exc
+        - |
+          cp -R ssh-credentials ~/.ssh
+          ssh -o StrictHostKeyChecking=no $EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'kinit -kt /home/$EDGENODE_USERNAME/$EDGENODE_USERNAME.keytab $EDGENODE_USERNAME@DW'"
+        path: sh
+    task: kinit
+  - config:
+      image_resource:
+        source:
+          repository: ((docker-awscli-ubuntu.repository))
+          tag: ((docker-awscli-ubuntu.version))
+        type: docker-image
+      inputs:
+      - name: ssh-credentials
+      - name: dataworks-audit-data-ingest
+      params:
+        CLOUDHSM_KEY_ID: ((audit-ingest.cloudhsm_key_id))
+        EDGENODE_HOSTNAME: ((audit-ingest.edgenode_hostname))
+        EDGENODE_USERNAME: ((audit-ingest.edgenode_username))
+        S3_BUCKET_ID: ((audit-ingest.s3_bucket_id))
+        S3_PREFIX: ((audit-ingest.s3_prefix))
+      platform: linux
+      run:
+        args:
+        - -exc
+        - |
+          cp -R ssh-credentials ~/.ssh
+          ssh -o StrictHostKeyChecking=no $EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c '/tmp/audit_data_ingest.py \
+              --src $SOURCE_FOLDER \
+              --s3_bucket_id $S3_BUCKET_ID \
+              --s3_prefix $S3_PREFIX \
+              --cloudhsm_key_id $CLOUDHSM_KEY_ID"
+        path: sh
+    task: execute-code
+resources:
+- check_every: 5m
+  name: dataworks-audit-data-ingest
+  source:
+    branch: master
+    repository: dwp/dataworks-audit-data-ingest
+    uri: https://github.com/dwp/dataworks-audit-data-ingest.git
+  type: git
+  webhook_token: ((dataworks.concourse_github_webhook_token))
