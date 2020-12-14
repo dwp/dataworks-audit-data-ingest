@@ -100,8 +100,7 @@ jobs:
         - -exc
         - |
           cp -R ssh-credentials ~/.ssh
-          export AWS_DEFAULT_REGION
-          ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'AWS_DEFAULT_REGION=((audit-ingest.aws_default_region)) python3 /tmp/audit_data_ingest.py \
+          ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'python3 /tmp/audit_data_ingest.py \
               --src-hdfs-dir $SRC_HDFS_DIR \
               --s3-publish-bucket $S3_BUCKET_ID \
               --s3-prefix $S3_PREFIX \

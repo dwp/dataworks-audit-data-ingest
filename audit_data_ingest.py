@@ -118,7 +118,7 @@ def get_client(service_name, aws_default_region):
 
 
 def get_hsm_key():
-    ssm_client = get_client("ssm")
+    ssm_client = get_client("ssm", aws_default_region)
     # TODO: This needs to return an object with both the public key material as well as the "cloudhsm:262152,262151" identifier string needed by DKS
     return ssm_client.get_parameter(Name="ucfs.development.businessdata.hsmkey.pub")
 
