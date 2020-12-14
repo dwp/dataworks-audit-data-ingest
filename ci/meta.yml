@@ -55,8 +55,9 @@ meta:
             - |
               cp -R ssh-credentials ~/.ssh
               scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no aws-session/credentials concourse@$EDGENODE_HOSTNAME:/tmp/
-              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "mkdir -p ~/.aws/"
-              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "cp /tmp/credentials /home/concourse/.aws/"
+              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo mkdir -p /home/$EDGENODE_USERNAME/.aws/"
+              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo cp /tmp/credentials /home/$EDGENODE_USERNAME/.aws/"
+              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo chown $EDGENODE_USERNAME:$EDGENODE_USERNAME /home/$EDGENODE_USERNAME/.aws/"
               ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'python3 /tmp/audit_data_ingest.py \
                   --src-hdfs-dir $SRC_HDFS_DIR \
                   --s3-publish-bucket $S3_BUCKET_ID \
