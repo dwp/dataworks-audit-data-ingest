@@ -148,17 +148,17 @@ def today():
 
 
 def upload_to_s3(
-    out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region
+    enc_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region
 ):
     # Upload files to S3
-    encrypted_file_name = pjoin(tmp_dir, file)
+    encrypted_file_name = pjoin(tmp_dir, enc_file)
     logger.info(f"Uploading {encrypted_file_name} to S3 ")
     s3_client = get_client("s3", aws_default_region)
     with open(encrypted_file_name, "rb") as data:
         s3_client.upload_fileobj(
             data,
             s3_bucket,
-            f"{s3_prefix}/{today()}/{basename(file)}",
+            f"{s3_prefix}/{today()}/{basename(enc_file)}",
             ExtraArgs={"Metadata": s3_object_metadata},
         )
 
