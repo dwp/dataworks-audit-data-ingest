@@ -117,7 +117,6 @@ def copy_files_from_hdfs(hdfs_dir, tmp_dir):
     logger.info(f"Retrieving {hdfs_dir} from HDFS")
     os.mkdir(tmp_dir)
     try:
-        hdfs_dir = "/etl/uc/auditlog/2020-12-11"
         process = subprocess.run(
             ["hdfs", "dfs", "-copyToLocal", hdfs_dir, tmp_dir],
             check=True,
