@@ -34,19 +34,19 @@ def filter_date(hdfsdir, start_date):
     return dirdate > start_date
 
 
-def main(start_date, src_hdfs_dir, tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region):
+def main(start_date, src_hdfs_dir, tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name):
     dates = get_auditlog_list(start_date)
     for day in dates:
         pass
 	#copy_files_from_hdfs(day, tmp_dir)
-    encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region)
+    encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name)
         
     #json_files = get_json_files(src_hdfs_dir)
     #encrypt_and_upload_json_files(json_files, tmp_dir, s3_bucket, s3_prefix)
 
 
-def encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region):
-    hsm_key = get_hsm_key()    
+def encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name):
+    hsm_key = get_hsm_key(hsm_key_param_name)
     for root, dirs, files in os.walk(tmp_dir):
         for name in files:
             data_key_nonce = Crypto.Random.get_random_bytes(12)
@@ -117,14 +117,14 @@ def get_client(service_name, aws_default_region):
     return boto3.client(service_name, region_name=aws_default_region)
 
 
-def get_hsm_key():
+def get_hsm_key(hsm_key_param_name):
     ssm_client = get_client("ssm", aws_default_region)
     # TODO: This needs to return an object with both the public key material as well as the "cloudhsm:262152,262151" identifier string needed by DKS
-    return ssm_client.get_parameter(Name="ucfs.development.businessdata.hsmkey.pub")
+    return ssm_client.get_parameter(Name=hsm_key_param_name)
 
 
-def encrypt_and_upload_json_files(json_files, tmp_dir, s3_bucket, s3_prefix):
-    hsm_public_key = get_hsm_key()
+def encrypt_and_upload_json_files(json_files, tmp_dir, s3_bucket, s3_prefix, hsm_key_param_name):
+    hsm_public_key = get_hsm_key(hsm_key_param_name)
     data_key_cipher = AES.new(hsm_public_key.encode(), AES.MODE_GCM, nonce=NONCE)
     # Encrypt data key using HSM public key
     data_key_ciphertext = data_key_cipher.encrypt(DATA_KEY)
@@ -202,6 +202,11 @@ if __name__ == "__main__":
         help="HSM Key ID in 'cloudhsm:privkeyid:pubkeyid' format",
     )
     parser.add_argument(
+        "--hsm-key-param-name",
+        required=True,
+        help="HSM Public Key SSM Parameter name",
+    )
+    parser.add_argument(
         "--aws-default-region",
         required=False,
         default='eu-west-2',
@@ -214,12 +219,13 @@ if __name__ == "__main__":
     s3_bucket = args.s3_publish_bucket
     s3_prefix = args.s3_prefix
     hsm_key_id = args.hsm_key_id
+    hsm_key_param_name = args.hsm_key_param_name
     aws_default_region = args.aws_default_region
 
     try:
         clean_dir(tmp_dir)
         start_date = find_start_date()
-        main(start_date, src_hdfs_dir, tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region)
+        main(start_date, src_hdfs_dir, tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name)
     except Exception as ex:
         logger.error("Error processing files")
         raise ex

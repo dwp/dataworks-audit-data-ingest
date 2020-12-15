@@ -15,6 +15,13 @@ jobs:
       outputs:
       - name: ssh-credentials
       params:
+        AWS_DEFAULT_REGION: ((audit-ingest.aws_default_region))
+        CLOUDHSM_KEY_ID: ((audit-ingest.cloudhsm_key_id))
+        EDGENODE_USERNAME: ((audit-ingest.edgenode_username))
+        PROXY: ((audit-ingest.internet_proxy))
+        S3_BUCKET_ID: ((audit-ingest.s3_bucket_id))
+        S3_PREFIX: ((audit-ingest.s3_prefix))
+        SRC_HDFS_DIR: ((audit-ingest.src_hdfs_dir))
         SSH_PRIVATE_KEY: ((crown.private_key))
       platform: linux
       run:
@@ -30,6 +37,18 @@ jobs:
               StrictHostKeyChecking no
           EOF
           chmod 400 id_rsa
+          cat <<EOF> wrapper.sh
+          export HTTPS_PROXY="$PROXY"
+          export https_proxy="$PROXY"
+          sudo mkdir -p /home/$EDGENODE_USERNAME/.aws/
+          sudo cp /tmp/credentials /home/$EDGENODE_USERNAME/.aws/
+          sudo chown $EDGENODE_USERNAME:$EDGENODE_USERNAME /home/$EDGENODE_USERNAME/.aws/
+          sudo su - $EDGENODE_USERNAME -c 'python3 /tmp/audit_data_ingest.py \
+              --src-hdfs-dir $SRC_HDFS_DIR \
+              --s3-publish-bucket $S3_BUCKET_ID \
+              --s3-prefix $S3_PREFIX \
+              --hsm-key-id $CLOUDHSM_KEY_ID'
+          EOF
         dir: ssh-credentials
         path: sh
     task: create-ssh-credentials
@@ -127,13 +146,8 @@ jobs:
       - name: aws-session
       - name: dataworks-audit-data-ingest
       params:
-        AWS_DEFAULT_REGION: ((audit-ingest.aws_default_region))
-        CLOUDHSM_KEY_ID: ((audit-ingest.cloudhsm_key_id))
         EDGENODE_HOSTNAME: ((audit-ingest.edgenode_hostname))
         EDGENODE_USERNAME: ((audit-ingest.edgenode_username))
-        S3_BUCKET_ID: ((audit-ingest.s3_bucket_id))
-        S3_PREFIX: ((audit-ingest.s3_prefix))
-        SRC_HDFS_DIR: ((audit-ingest.src_hdfs_dir))
       platform: linux
       run:
         args:
@@ -141,14 +155,8 @@ jobs:
         - |
           cp -R ssh-credentials ~/.ssh
           scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no aws-session/credentials concourse@$EDGENODE_HOSTNAME:/tmp/
-          ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo mkdir -p /home/$EDGENODE_USERNAME/.aws/"
-          ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo cp /tmp/credentials /home/$EDGENODE_USERNAME/.aws/"
-          ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo chown $EDGENODE_USERNAME:$EDGENODE_USERNAME /home/$EDGENODE_USERNAME/.aws/"
-          ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'python3 /tmp/audit_data_ingest.py \
-              --src-hdfs-dir $SRC_HDFS_DIR \
-              --s3-publish-bucket $S3_BUCKET_ID \
-              --s3-prefix $S3_PREFIX \
-              --hsm-key-id $CLOUDHSM_KEY_ID'"
+          scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ssh-credentials/wrapper.sh concourse@$EDGENODE_HOSTNAME:/tmp/
+          ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "bash +x /tmp/wrapper.sh"
         path: sh
     task: execute-code
 resources:
