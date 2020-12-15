@@ -47,8 +47,7 @@ def main(
 ):
     dates = get_auditlog_list(start_date)
     for day in dates:
-        pass
-    # copy_files_from_hdfs(day, tmp_dir)
+        copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir,day)}", tmp_dir)
     encrypt_and_upload_files(
         tmp_dir,
         s3_bucket,
@@ -57,10 +56,6 @@ def main(
         aws_default_region,
         hsm_key_param_name,
     )
-
-    # json_files = get_json_files(src_hdfs_dir)
-    # encrypt_and_upload_json_files(json_files, tmp_dir, s3_bucket, s3_prefix)
-
 
 def encrypt_and_upload_files(
     tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name
