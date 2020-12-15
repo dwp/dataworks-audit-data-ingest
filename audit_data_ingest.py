@@ -94,8 +94,8 @@ def encrypt_and_upload_files(
             # hsm_key_cipher = AES.new(hsm_key, AES.MODE_GCM, hsm_key_nonce)
             # encrypted_data_key = hsm_key_cipher.encrypt(data_key)
             s3_object_metadata = {
-                "x-amz-meta-iv": b64encode(cipher_aes.nonce),
-                "x-amz-meta-ciphertext": b64encode(enc_session_key),
+                "x-amz-meta-iv": b64encode(cipher_aes.nonce).decode(),
+                "x-amz-meta-ciphertext": b64encode(enc_session_key).decode(),
                 "x-amz-meta-datakeyencryptionkeyid": hsm_key_id,
             }
             upload_to_s3(
