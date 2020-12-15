@@ -153,6 +153,14 @@ def upload_to_s3(
     # Upload files to S3
     encrypted_file_name = pjoin(tmp_dir, enc_file)
     logger.info(f"Uploading {encrypted_file_name} to S3 ")
+    print(s3_object_metadata)
+    print(type(s3_object_metadata))
+    print(s3_object_metadata['x-amz-meta-iv'])
+    print(type(s3_object_metadata['x-amz-meta-iv']))
+    print(s3_object_metadata['x-amz-meta-ciphertext'])
+    print(type(s3_object_metadata['x-amz-meta-ciphertext']))
+    print(s3_object_metadata['x-amz-meta-datakeyencryptionkeyid'])
+    print(type(s3_object_metadata['x-amz-meta-datakeyencryptionkeyid']))
     s3_client = get_client("s3", aws_default_region)
     with open(encrypted_file_name, "rb") as data:
         s3_client.upload_fileobj(
