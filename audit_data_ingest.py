@@ -73,26 +73,13 @@ def encrypt_and_upload_files(
             # Session key gets encrypted with RSA HSM public key
             cipher_rsa = PKCS1_OAEP.new(hsm_key)
             enc_session_key = cipher_rsa.encrypt(session_key)
-            cipher_aes = AES.new(session_key, AES.MODE_EAX)
             # Data gets encrypted with AES session key (session_key)
+            cipher_aes = AES.new(session_key, AES.MODE_EAX)
             in_file = os.path.join(root, name)
             out_file = in_file + ".enc"
             with open(in_file, "rb") as fin, open(out_file, "wb") as fout:
                 compressed_data = zlib.compress(fin.read())
                 fout.write(cipher_aes.encrypt(compressed_data))
-            # Metadata gets added to S3 object
-            # data_key_nonce = get_random_bytes(12)
-            # data_key = get_random_bytes(16)
-            # data_key_cipher = AES.new(data_key, AES.MODE_GCM, data_key_nonce)
-            # in_file = os.path.join(root, name)
-            # out_file = in_file + ".enc"
-            # with open(in_file, "rb") as fin, open(out_file, "wb") as fout:
-            #     # Compress data before encrypting it
-            #     compressed_data = zlib.compress(fin.read())
-            #     fout.write(data_key_cipher.encrypt(compressed_data))
-            # hsm_key_nonce = get_random_bytes(12)
-            # hsm_key_cipher = AES.new(hsm_key, AES.MODE_GCM, hsm_key_nonce)
-            # encrypted_data_key = hsm_key_cipher.encrypt(data_key)
             s3_object_metadata = {
                 "x-amz-meta-iv": b64encode(cipher_aes.nonce).decode(),
                 "x-amz-meta-ciphertext": b64encode(enc_session_key).decode(),
@@ -153,14 +140,6 @@ def upload_to_s3(
     # Upload files to S3
     encrypted_file_name = pjoin(tmp_dir, enc_file)
     logger.info(f"Uploading {encrypted_file_name} to S3 ")
-    print(s3_object_metadata)
-    print(type(s3_object_metadata))
-    print(s3_object_metadata['x-amz-meta-iv'])
-    print(type(s3_object_metadata['x-amz-meta-iv']))
-    print(s3_object_metadata['x-amz-meta-ciphertext'])
-    print(type(s3_object_metadata['x-amz-meta-ciphertext']))
-    print(s3_object_metadata['x-amz-meta-datakeyencryptionkeyid'])
-    print(type(s3_object_metadata['x-amz-meta-datakeyencryptionkeyid']))
     s3_client = get_client("s3", aws_default_region)
     with open(encrypted_file_name, "rb") as data:
         s3_client.upload_fileobj(
