@@ -51,7 +51,7 @@ def encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_defa
         for name in files:
             data_key_nonce = get_random_bytes(12)
             data_key = get_random_bytes(16)
-            data_key_cipher = AES.new(key, AES.MODE_GCM, data_key_nonce)
+            data_key_cipher = AES.new(data_key, AES.MODE_GCM, data_key_nonce)
             in_file = os.path.join(root, name)
             out_file = in_file + ".enc"
             with open(in_file, "rb") as fin, open(out_file, "wb") as fout:
