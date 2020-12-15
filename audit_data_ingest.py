@@ -49,8 +49,8 @@ def encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_defa
     hsm_key = get_hsm_key(hsm_key_param_name)
     for root, dirs, files in os.walk(tmp_dir):
         for name in files:
-            data_key_nonce = Crypto.Random.get_random_bytes(12)
-            data_key = Crypto.Random.get_random_bytes(16)
+            data_key_nonce = get_random_bytes(12)
+            data_key = get_random_bytes(16)
             data_key_cipher = AES.new(key, AES.MODE_GCM, data_key_nonce)
             in_file = os.path.join(root, name)
             out_file = in_file + ".enc"
@@ -58,7 +58,7 @@ def encrypt_and_upload_files(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_defa
                 # Compress data before encrypting it
                 compressed_data = zlib.compress(fin.read())
                 fout.write(data_key_cipher.encrypt(compressed_data))
-            hsm_key_nonce = Crypto.Random.get_random_bytes(12)
+            hsm_key_nonce = get_random_bytes(12)
             hsm_key_cipher = AES.new(hsm_key, AES.MODE_GCM, hsm_key_nonce)
             encrypted_data_key = hsm_key_cipher.enrypt(data_key)
             s3_object_metadata = {x-amz-meta-iv: b64encode(hsm_key_cipher.nonce),
