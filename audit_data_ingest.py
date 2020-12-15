@@ -11,8 +11,9 @@ from datetime import date
 from os.path import join as pjoin, basename
 
 import boto3
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Random import get_random_bytes
+from Crypto.PublicKey import RSA
 
 IV = "iv"
 CIPHERTEXT = "ciphertext"
@@ -64,24 +65,36 @@ def main(
 def encrypt_and_upload_files(
     tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name
 ):
-    hsm_key = get_hsm_key(hsm_key_param_name)
+    hsm_key = RSA.import_key(get_hsm_key(hsm_key_param_name))
     for root, dirs, files in os.walk(tmp_dir):
         for name in files:
-            data_key_nonce = get_random_bytes(12)
-            data_key = get_random_bytes(16)
-            data_key_cipher = AES.new(data_key, AES.MODE_GCM, data_key_nonce)
+            session_key = get_random_bytes(16)
+            # Session key gets encrypted with RSA HSM public key
+            cipher_rsa = PKCS1_OAEP.new(hsm_key)
+            enc_session_key = cipher_rsa.encrypt(session_key)
+            cipher_aes = AES.new(session_key, AES.MODE_EAX)
+            # Data gets encrypted with AES session key (session_key)
             in_file = os.path.join(root, name)
             out_file = in_file + ".enc"
             with open(in_file, "rb") as fin, open(out_file, "wb") as fout:
-                # Compress data before encrypting it
                 compressed_data = zlib.compress(fin.read())
-                fout.write(data_key_cipher.encrypt(compressed_data))
-            hsm_key_nonce = get_random_bytes(12)
-            hsm_key_cipher = AES.new(hsm_key, AES.MODE_GCM, hsm_key_nonce)
-            encrypted_data_key = hsm_key_cipher.enrypt(data_key)
+                fout.write(cipher_aes.encrypt_and_digest(compressed_data))
+            # Metadata gets added to S3 object
+            # data_key_nonce = get_random_bytes(12)
+            # data_key = get_random_bytes(16)
+            # data_key_cipher = AES.new(data_key, AES.MODE_GCM, data_key_nonce)
+            # in_file = os.path.join(root, name)
+            # out_file = in_file + ".enc"
+            # with open(in_file, "rb") as fin, open(out_file, "wb") as fout:
+            #     # Compress data before encrypting it
+            #     compressed_data = zlib.compress(fin.read())
+            #     fout.write(data_key_cipher.encrypt(compressed_data))
+            # hsm_key_nonce = get_random_bytes(12)
+            # hsm_key_cipher = AES.new(hsm_key, AES.MODE_GCM, hsm_key_nonce)
+            # encrypted_data_key = hsm_key_cipher.encrypt(data_key)
             s3_object_metadata = {
-                "x-amz-meta-iv": b64encode(hsm_key_cipher.nonce),
-                "x-amz-meta-ciphertext": b64encode(encrypted_data_key),
+                "x-amz-meta-iv": b64encode(cipher_aes.nonce),
+                "x-amz-meta-ciphertext": b64encode(enc_session_key),
                 "x-amz-meta-datakeyencryptionkeyid": hsm_key_id,
             }
             upload_to_s3(
