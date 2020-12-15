@@ -79,7 +79,7 @@ def encrypt_and_upload_files(
             out_file = in_file + ".enc"
             with open(in_file, "rb") as fin, open(out_file, "wb") as fout:
                 compressed_data = zlib.compress(fin.read())
-                fout.write(cipher_aes.encrypt_and_digest(compressed_data))
+                fout.write(cipher_aes.encrypt(compressed_data))
             # Metadata gets added to S3 object
             # data_key_nonce = get_random_bytes(12)
             # data_key = get_random_bytes(16)
