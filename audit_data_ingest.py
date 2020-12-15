@@ -44,18 +44,27 @@ def main(
     hsm_key_id,
     aws_default_region,
     hsm_key_param_name,
+    progress_file
 ):
     dates = get_auditlog_list(start_date)
     for day in dates:
         copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir,day)}", tmp_dir)
-    encrypt_and_upload_files(
-        tmp_dir,
-        s3_bucket,
-        s3_prefix,
-        hsm_key_id,
-        aws_default_region,
-        hsm_key_param_name,
-    )
+        encrypt_and_upload_files(
+            tmp_dir,
+            s3_bucket,
+            s3_prefix,
+            hsm_key_id,
+            aws_default_region,
+            hsm_key_param_name,
+        )
+        update_progress_file(progress_file, day)
+        clean_dir(tmp_dir)
+
+
+def update_progress_file(progress_file, completed_date):
+    with open(progress_file, "r") as f:
+        f.write(completed_date)
+
 
 def encrypt_and_upload_files(
     tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name
@@ -152,52 +161,13 @@ def get_hsm_key(hsm_key_param_name):
     ssm_client = get_client("ssm", aws_default_region)
     return ssm_client.get_parameter(Name=hsm_key_param_name, WithDecryption=True)['Parameter']['Value']
 
-
-def encrypt_and_upload_json_files(
-    json_files, tmp_dir, s3_bucket, s3_prefix, hsm_key_param_name
-):
-    hsm_public_key = get_hsm_key(hsm_key_param_name)
-    data_key_cipher = AES.new(hsm_public_key.encode(), AES.MODE_GCM, nonce=NONCE)
-    # Encrypt data key using HSM public key
-    data_key_ciphertext = data_key_cipher.encrypt(DATA_KEY)
-
-    json_file_cipher = AES.new(DATA_KEY, AES.MODE_GCM, nonce=NONCE)
-    logger.info("Creating tmp directory id it doesn't exist")
-
-    # Add encrypted data key to S3 metadata dictionary
-    s3_object_metadata = {
-        IV: b64encode(NONCE).decode(),
-        CIPHERTEXT: b64encode(data_key_ciphertext).decode(),
-        DATAKEYENCRYPTIONKEYID: hsm_public_key,
-    }
-
-    # Create tmp directory if it doesn't exist
-    if not os.path.exists(tmp_dir):
-        os.makedirs(tmp_dir)
-    os.chmod(tmp_dir, 0o700)
-
-    for json_file in json_files:
-        encrypted_json_file_name = f"{basename(json_file)}.enc"
-        with open(json_file, "rb") as fin, open(
-            pjoin(tmp_dir, encrypted_json_file_name), "wb"
-        ) as fout:
-            # Compress data before encrypting it
-            compressed_data = zlib.compress(fin.read())
-            fout.write(json_file_cipher.encrypt(compressed_data))
-        upload_to_s3(
-            tmp_dir, encrypted_json_file_name, s3_object_metadata, s3_bucket, s3_prefix
-        )
-
-
 def clean_dir(tmp_dir):
-    pass
-    # if os.path.exists(tmp_dir):
-    #    logger.info("CLeaning temp_dir")
-    #    shutil.rmtree(tmp_dir)
+    if os.path.exists(tmp_dir):
+       logger.info("CLeaning temp_dir")
+       shutil.rmtree(tmp_dir)
 
 
-def find_start_date():
-    progress_file = "/home/aws-audit/audit-data-export-progress.log"
+def find_start_date(progress_file):
     try:
         with open(progress_file, "r") as f:
             start_datestr = f.read().strip("\n")
@@ -257,7 +227,8 @@ if __name__ == "__main__":
 
     try:
         clean_dir(tmp_dir)
-        start_date = find_start_date()
+        progress_file = "/home/aws-audit/audit-data-export-progress.log"
+        start_date = find_start_date(progress_file)
         main(
             start_date,
             src_hdfs_dir,
@@ -267,6 +238,7 @@ if __name__ == "__main__":
             hsm_key_id,
             aws_default_region,
             hsm_key_param_name,
+            progress_file
         )
     except Exception as ex:
         logger.error("Error processing files")

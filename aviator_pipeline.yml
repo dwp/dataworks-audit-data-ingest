@@ -65,6 +65,7 @@ jobs:
       outputs:
       - name: aws-session
       params:
+        ASSUME_DURATION: 43200
         AWS_ACCESS_KEY_ID: ((ci.aws_access_key_id))
         AWS_ACCOUNT: ((audit-ingest.aws_prod_account))
         AWS_DEFAULT_REGION: ((audit-ingest.aws_default_region))
