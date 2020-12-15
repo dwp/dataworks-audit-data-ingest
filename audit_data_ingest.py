@@ -169,7 +169,7 @@ def get_client(service_name, aws_default_region):
 
 def get_hsm_key(hsm_key_param_name):
     ssm_client = get_client("ssm", aws_default_region)
-    return ssm_client.get_parameter(Name=hsm_key_param_name, WithDecryption=True).Value
+    return ssm_client.get_parameter(Name=hsm_key_param_name, WithDecryption=True)['Parameter']['Value']
 
 
 def encrypt_and_upload_json_files(
