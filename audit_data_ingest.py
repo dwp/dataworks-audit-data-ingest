@@ -66,7 +66,7 @@ def encrypt_and_upload_files(
     tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name
 ):
     hsm_key_file = get_hsm_key(hsm_key_param_name)
-    hsm_key = RSA.import_key(open(hsm_key_file).read())
+    hsm_key = RSA.import_key(open(hsm_key_file))
     for root, dirs, files in os.walk(tmp_dir):
         for name in files:
             session_key = get_random_bytes(16)
