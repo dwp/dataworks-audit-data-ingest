@@ -71,7 +71,7 @@ def encrypt_and_upload_files(
             # Data gets encrypted with AES session key (session_key)
             cipher_aes = AES.new(session_key, AES.MODE_EAX)
             in_file = os.path.join(root, name)
-            out_file = in_file + ".enc"
+            out_file = in_file + "gz.enc"
             with open(in_file, "rb") as fin, open(out_file, "wb") as fout:
                 compressed_data = zlib.compress(fin.read())
                 fout.write(cipher_aes.encrypt(compressed_data))
