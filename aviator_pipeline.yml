@@ -18,6 +18,7 @@ jobs:
         AWS_DEFAULT_REGION: ((audit-ingest.aws_default_region))
         CLOUDHSM_KEY_ID: ((audit-ingest.cloudhsm_key_id))
         EDGENODE_USERNAME: ((audit-ingest.edgenode_username))
+        HSM_KEY_PARAM_NAME: ((audit-ingest.hsm_key_param_name))
         PROXY: ((audit-ingest.internet_proxy))
         S3_BUCKET_ID: ((audit-ingest.s3_bucket_id))
         S3_PREFIX: ((audit-ingest.s3_prefix))
@@ -43,11 +44,12 @@ jobs:
           sudo mkdir -p /home/$EDGENODE_USERNAME/.aws/
           sudo cp /tmp/credentials /home/$EDGENODE_USERNAME/.aws/
           sudo chown $EDGENODE_USERNAME:$EDGENODE_USERNAME /home/$EDGENODE_USERNAME/.aws/
-          sudo su - $EDGENODE_USERNAME -c 'python3 /tmp/audit_data_ingest.py \
+          sudo -E su $EDGENODE_USERNAME -c 'python3 /tmp/audit_data_ingest.py \
               --src-hdfs-dir $SRC_HDFS_DIR \
               --s3-publish-bucket $S3_BUCKET_ID \
               --s3-prefix $S3_PREFIX \
-              --hsm-key-id $CLOUDHSM_KEY_ID'
+              --hsm-key-id $CLOUDHSM_KEY_ID \
+              --hsm-key-param-name $HSM_KEY_PARAM_NAME'
           EOF
         dir: ssh-credentials
         path: sh
