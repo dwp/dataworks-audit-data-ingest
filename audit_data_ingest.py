@@ -62,7 +62,7 @@ def main(
 
 
 def update_progress_file(progress_file, completed_date):
-    with open(progress_file, "r") as f:
+    with open(progress_file, "w") as f:
         f.write(completed_date)
 
 
@@ -163,7 +163,7 @@ def get_hsm_key(hsm_key_param_name):
 
 def clean_dir(tmp_dir):
     if os.path.exists(tmp_dir):
-       logger.info("CLeaning temp_dir")
+       logger.info("Cleaning temp_dir")
        shutil.rmtree(tmp_dir)
 
 
