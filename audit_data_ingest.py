@@ -69,7 +69,7 @@ def update_progress_file(progress_file, completed_date):
 def encrypt_and_upload_files(
     tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name
 ):
-    hsm_key_file = b64decode(get_hsm_key(hsm_key_param_name))
+    hsm_key_file = b64decode(get_hsm_key(hsm_key_param_name, aws_default_region))
     hsm_key = RSA.import_key(hsm_key_file)
     for root, dirs, files in os.walk(tmp_dir):
         for name in files:
@@ -159,7 +159,7 @@ def get_client(service_name, aws_default_region):
     return boto3.client(service_name, region_name=aws_default_region)
 
 
-def get_hsm_key(hsm_key_param_name):
+def get_hsm_key(hsm_key_param_name, aws_default_region):
     ssm_client = get_client("ssm", aws_default_region)
     return ssm_client.get_parameter(Name=hsm_key_param_name, WithDecryption=True)['Parameter']['Value']
 
