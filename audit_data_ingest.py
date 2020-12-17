@@ -12,6 +12,8 @@ from datetime import date
 import boto3
 from botocore.exceptions import ClientError
 from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.Hash import SHA256
+from Crypto.Signature import pss
 from Crypto.Random import get_random_bytes
 from Crypto.PublicKey import RSA
 
@@ -46,7 +48,7 @@ def main(
     hsm_key_param_name,
     progress_file
 ):
-    dates = get_auditlog_list(start_date)
+    dates = get_auditlog_list(start_date, src_hdfs_dir)
     for day in dates:
         copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir,day)}", tmp_dir)
         encrypt_and_upload_files(
@@ -75,7 +77,7 @@ def encrypt_and_upload_files(
         for name in files:
             session_key = get_random_bytes(16)
             # Session key gets encrypted with RSA HSM public key
-            cipher_rsa = PKCS1_OAEP.new(hsm_key)
+            cipher_rsa = PKCS1_OAEP.new(key=hsm_key, hashAlgo=SHA256, mgfunc=lambda x, y: pss.MGF1(x, y, SHA256))
             enc_session_key = cipher_rsa.encrypt(session_key)
             # Data gets encrypted with AES session key (session_key)
             cipher_aes = AES.new(session_key, AES.MODE_EAX)
@@ -94,13 +96,13 @@ def encrypt_and_upload_files(
             )
 
 
-def get_auditlog_list(start_date):
+def get_auditlog_list(start_date, src_hdfs_dir):
     logger.info("Finding all auditlogs to process")
     if start_date is not None:
         logger.info(f"Excluding entries older than {start_date}")
     try:
         process = subprocess.run(
-            ["hdfs", "dfs", "-ls", "-C", "/etl/uc/auditlog"], #TODO - Hardcoded
+            ["hdfs", "dfs", "-ls", "-C", src_hdfs_dir],
             check=True,
             stdout=subprocess.PIPE,
             universal_newlines=True,
