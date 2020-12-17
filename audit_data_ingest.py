@@ -90,7 +90,7 @@ def encrypt_and_upload_files(
                 "x-amz-meta-datakeyencryptionkeyid": hsm_key_id,
             }
             upload_to_s3(
-                out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region
+                out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region, tmp_dir
             )
 
 
@@ -138,17 +138,19 @@ def today():
 
 
 def upload_to_s3(
-    enc_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region
+    enc_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region, tmp_dir
 ):
     # Upload files to S3
+    day = tmp_dir.split("/")[-1]
     encrypted_file_name = pjoin(tmp_dir, enc_file)
-    logger.info(f"Uploading {encrypted_file_name} to S3 ")
+    s3_file_path = f"{s3_prefix}{day}/{basename(enc_file)}"
+    logger.info(f"Uploading {encrypted_file_name} to s3://{s3_bucket}/{s3_file_path}")
     s3_client = get_client("s3", aws_default_region)
     with open(encrypted_file_name, "rb") as data:
         s3_client.upload_fileobj(
             data,
             s3_bucket,
-            f"{s3_prefix}/{today()}/{basename(enc_file)}",
+            s3_file_path,
             ExtraArgs={"Metadata": s3_object_metadata},
         )
 
@@ -218,31 +220,24 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    tmp_dir = args.tmp
-    src_hdfs_dir = args.src_hdfs_dir
-    s3_bucket = args.s3_publish_bucket
-    s3_prefix = args.s3_prefix
-    hsm_key_id = args.hsm_key_id
-    hsm_key_param_name = args.hsm_key_param_name
-    aws_default_region = args.aws_default_region
 
     try:
-        clean_dir(tmp_dir)
+        clean_dir(args.tmp)
         progress_file = "/home/aws-audit/audit-data-export-progress.log"
         start_date = find_start_date(progress_file)
         main(
             start_date,
-            src_hdfs_dir,
-            tmp_dir,
-            s3_bucket,
-            s3_prefix,
-            hsm_key_id,
-            aws_default_region,
-            hsm_key_param_name,
+            args.src_hdfs_dir,
+            args.tmp,
+            args.s3_publish_bucket,
+            args.s3_prefix,
+            args.hsm_key_id,
+            args.aws_default_region,
+            args.hsm_key_param_name,
             progress_file
         )
     except Exception as ex:
         logger.error("Error processing files")
         raise ex
     finally:
-        clean_dir(tmp_dir)
+        clean_dir(args.tmp)
