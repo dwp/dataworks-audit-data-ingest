@@ -227,7 +227,7 @@ if __name__ == "__main__":
     aws_default_region = args.aws_default_region
 
     try:
-        clean_dir(tmp_dir)x
+        clean_dir(tmp_dir)
         progress_file = "/home/aws-audit/audit-data-export-progress.log"
         start_date = find_start_date(progress_file)
         main(
