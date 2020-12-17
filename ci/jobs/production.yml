@@ -26,8 +26,7 @@ jobs:
             AWS_ACCESS_KEY_ID: ((ci.aws_access_key_id))
             AWS_SECRET_ACCESS_KEY: ((ci.aws_secret_access_key))
             AWS_DEFAULT_REGION: ((audit-ingest.aws_default_region))
-#            ASSUME_DURATION: 43200
-            ASSUME_DURATION: 900
+            ASSUME_DURATION: 43200
 
       - .: (( inject meta.plan.deploy-code ))
         config:

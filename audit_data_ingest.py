@@ -4,11 +4,13 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import zlib
 from base64 import b64encode, b64decode
 from datetime import date
 
 import boto3
+from botocore.exceptions import ClientError
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Random import get_random_bytes
 from Crypto.PublicKey import RSA
@@ -231,6 +233,10 @@ if __name__ == "__main__":
             args.hsm_key_param_name,
             progress_file
         )
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ExpiredTokenException':
+            logger.warning("AWS credentials expired. Exiting")
+            sys.exit(0)
     except Exception as ex:
         logger.error("Error processing files")
         raise ex
