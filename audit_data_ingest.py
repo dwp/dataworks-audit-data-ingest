@@ -90,7 +90,7 @@ def encrypt_and_upload_files(
                 "x-amz-meta-datakeyencryptionkeyid": hsm_key_id,
             }
             upload_to_s3(
-                out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region, tmp_dir
+                out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region
             )
 
 
@@ -137,20 +137,17 @@ def today():
     return str(date.today())
 
 
-def upload_to_s3(
-    enc_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region, tmp_dir
-):
+def upload_to_s3(enc_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region):
     # Upload files to S3
-    day = tmp_dir.split("/")[-1]
-    encrypted_file_name = pjoin(tmp_dir, enc_file)
-    s3_file_path = f"{s3_prefix}{day}/{basename(enc_file)}"
-    logger.info(f"Uploading {encrypted_file_name} to s3://{s3_bucket}/{s3_file_path}")
+    day = basename(enc_file).split("/")[-1]
+    destination_file_name = f"{s3_prefix}{day}/{basename(enc_file)}"
+    logger.info(f"Uploading {enc_file} to s3://{s3_bucket}/{destination_file_name}")
     s3_client = get_client("s3", aws_default_region)
-    with open(encrypted_file_name, "rb") as data:
+    with open(enc_file, "rb") as data:
         s3_client.upload_fileobj(
             data,
             s3_bucket,
-            s3_file_path,
+            destination_file_name,
             ExtraArgs={"Metadata": s3_object_metadata},
         )
 
