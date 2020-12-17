@@ -1,6 +1,5 @@
 import argparse
 import datetime
-import glob
 import logging
 import os
 import shutil
@@ -8,7 +7,6 @@ import subprocess
 import zlib
 from base64 import b64encode, b64decode
 from datetime import date
-from os.path import join as pjoin, basename
 
 import boto3
 from Crypto.Cipher import AES, PKCS1_OAEP
@@ -139,8 +137,8 @@ def today():
 
 def upload_to_s3(enc_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region):
     # Upload files to S3
-    day = basename(enc_file).split("/")[-1]
-    destination_file_name = f"{s3_prefix}{day}/{basename(enc_file)}"
+    day = os.path.dirname(enc_file).split("/")[-1]
+    destination_file_name = f"{s3_prefix}{day}/{os.path.basename(enc_file)}"
     logger.info(f"Uploading {enc_file} to s3://{s3_bucket}/{destination_file_name}")
     s3_client = get_client("s3", aws_default_region)
     with open(enc_file, "rb") as data:
