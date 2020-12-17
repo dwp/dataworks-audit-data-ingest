@@ -119,7 +119,7 @@ def get_auditlog_list(start_date):
 
 def copy_files_from_hdfs(hdfs_dir, tmp_dir):
     logger.info(f"Retrieving {hdfs_dir} from HDFS")
-    os.mkdir(tmp_dir)
+    os.makedirs(tmp_dir, exist_ok=True)
     try:
         process = subprocess.run(
             ["hdfs", "dfs", "-copyToLocal", hdfs_dir, tmp_dir],
