@@ -67,7 +67,7 @@ jobs:
       outputs:
       - name: aws-session
       params:
-        ASSUME_DURATION: 900
+        ASSUME_DURATION: 43200
         AWS_ACCESS_KEY_ID: ((ci.aws_access_key_id))
         AWS_ACCOUNT: ((audit-ingest.aws_prod_account))
         AWS_DEFAULT_REGION: ((audit-ingest.aws_default_region))
@@ -168,7 +168,7 @@ resources:
 - check_every: 5m
   name: dataworks-audit-data-ingest
   source:
-    branch: dw5399_secure_audit_log_transfer_service
+    branch: master
     repository: dwp/dataworks-audit-data-ingest
     uri: https://github.com/dwp/dataworks-audit-data-ingest.git
   type: git
