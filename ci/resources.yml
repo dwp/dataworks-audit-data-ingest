@@ -2,7 +2,7 @@ resources:
 - name: dataworks-audit-data-ingest
   type: git
   source:
-    branch: dw5399_secure_audit_log_transfer_service
+    branch: master
     repository: dwp/dataworks-audit-data-ingest
     uri: https://github.com/dwp/dataworks-audit-data-ingest.git
   check_every: 5m
