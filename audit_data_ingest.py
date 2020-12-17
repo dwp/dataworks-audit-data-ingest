@@ -168,6 +168,7 @@ def clean_dir(tmp_dir):
 
 
 def find_start_date(progress_file):
+    start_date = None
     try:
         with open(progress_file, "r") as f:
             start_datestr = f.read().strip("\n")
@@ -178,7 +179,7 @@ def find_start_date(progress_file):
         )
         raise ValueError
     except IOError:
-        logger.warn(f"No progress file found at {progress_file}; processing all dates")
+        logger.warning(f"No progress file found at {progress_file}; processing all dates")
 
     return start_date
 
@@ -226,7 +227,7 @@ if __name__ == "__main__":
     aws_default_region = args.aws_default_region
 
     try:
-        clean_dir(tmp_dir)
+        clean_dir(tmp_dir)x
         progress_file = "/home/aws-audit/audit-data-export-progress.log"
         start_date = find_start_date(progress_file)
         main(

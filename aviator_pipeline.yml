@@ -168,7 +168,7 @@ resources:
 - check_every: 5m
   name: dataworks-audit-data-ingest
   source:
-    branch: master
+    branch: dw5399_secure_audit_log_transfer_service
     repository: dwp/dataworks-audit-data-ingest
     uri: https://github.com/dwp/dataworks-audit-data-ingest.git
   type: git
