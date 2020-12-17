@@ -57,7 +57,7 @@ def main(
             aws_default_region,
             hsm_key_param_name,
         )
-        update_progress_file(progress_file, day)
+        update_progress_file(progress_file, day.split("/")[-1])
         clean_dir(tmp_dir)
 
 
@@ -100,7 +100,7 @@ def get_auditlog_list(start_date):
         logger.info(f"Excluding entries older than {start_date}")
     try:
         process = subprocess.run(
-            ["hdfs", "dfs", "-ls", "-C", "/etl/uc/auditlog"],
+            ["hdfs", "dfs", "-ls", "-C", "/etl/uc/auditlog"], #TODO - Hardcoded
             check=True,
             stdout=subprocess.PIPE,
             universal_newlines=True,
