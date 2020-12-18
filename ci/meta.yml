@@ -128,7 +128,7 @@ meta:
               export AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
 
               # obtain some form of AWS creds, lay down to file
-              export AWS_ROLE_ARN=arn:aws:iam::$AWS_ACCOUNT:role/ci
+              export AWS_ROLE_ARN=arn:aws:iam::$AWS_ACCOUNT:role/AuditDataIngest
               source /assume-role
 
               cat <<EOF> credentials
