@@ -101,7 +101,8 @@ meta:
                   --s3-publish-bucket $S3_BUCKET_ID \
                   --s3-prefix $S3_PREFIX \
                   --hsm-key-id $CLOUDHSM_KEY_ID \
-                  --hsm-key-param-name $HSM_KEY_PARAM_NAME'
+                  --hsm-key-param-name $HSM_KEY_PARAM_NAME \
+                  --progress-file /home/$EDGENODE_USERNAME/audit-data-progress.log'
               EOF
 
     create-aws-credentials:
