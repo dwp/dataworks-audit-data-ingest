@@ -143,13 +143,17 @@ def upload_to_s3(
         "Uploading %s to s3://%s/%s", enc_file, s3_bucket, destination_file_name
     )
     s3_client = get_client("s3", aws_default_region)
-    with open(enc_file, "rb") as data:
-        s3_client.upload_fileobj(
-            data,
-            s3_bucket,
-            destination_file_name,
-            ExtraArgs={"Metadata": s3_object_metadata},
-        )
+    try:
+        with open(enc_file, "rb") as data:
+            s3_client.upload_fileobj(
+                data,
+                s3_bucket,
+                destination_file_name,
+                ExtraArgs={"Metadata": s3_object_metadata},
+            )
+    except Exception as exc:
+        logger.error("Error uploading %s to S3", enc_file)
+        raise exc
 
 
 def get_client(service_name, aws_default_region):
@@ -224,9 +228,7 @@ if __name__ == "__main__":
         help="The Default AWS Region this script will be ran in",
     )
     parser.add_argument(
-        "--progress-file",
-        required=True,
-        help="A progress file location",
+        "--progress-file", required=True, help="A progress file location"
     )
 
     args = parser.parse_args()
@@ -248,7 +250,9 @@ if __name__ == "__main__":
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "ExpiredTokenException":
             logger.warning("AWS credentials expired. Exiting")
-            sys.exit(0)
+        else:
+            logger.error("Error calling AWS service: %s", exc)
+            raise exc
     except Exception as exc:
         logger.error("Error processing files: %s", exc)
         raise exc
