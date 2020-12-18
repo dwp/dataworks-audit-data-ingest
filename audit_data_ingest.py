@@ -223,6 +223,11 @@ if __name__ == "__main__":
         default="eu-west-2",
         help="The Default AWS Region this script will be ran in",
     )
+    parser.add_argument(
+        "--progress-file",
+        required=True,
+        help="A progress file location",
+    )
 
     args = parser.parse_args()
 

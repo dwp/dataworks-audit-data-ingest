@@ -8,7 +8,7 @@ resources:
   check_every: 5m
   webhook_token: ((dataworks.concourse_github_webhook_token))
 
-- name: 1h
+- name: 12h
   type: time
   source:
-    {interval: 1h}
+    {interval: 12h}
