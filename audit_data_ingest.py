@@ -1,25 +1,23 @@
+"""
+Copy files from HDFS, encrypt them and upload them to S3.
+"""
 import argparse
 import datetime
-import glob
 import logging
 import os
 import shutil
 import subprocess
+import sys
 import zlib
 from base64 import b64encode, b64decode
-from datetime import date
-from os.path import join as pjoin, basename
 
 import boto3
+from botocore.exceptions import ClientError
 from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.Hash import SHA256, SHA1
+from Crypto.Signature import pss
 from Crypto.Random import get_random_bytes
 from Crypto.PublicKey import RSA
-
-IV = "iv"
-CIPHERTEXT = "ciphertext"
-DATAKEYENCRYPTIONKEYID = "datakeyencryptionkeyid"
-DATA_KEY = get_random_bytes(16)
-NONCE = get_random_bytes(12)
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 logger = logging.getLogger("audit-log-exporter")
@@ -30,7 +28,7 @@ def filter_date(hdfsdir, start_date):
     try:
         dirdate = datetime.datetime.strptime(datestr, "%Y-%m-%d")
     except ValueError:
-        logger.warn(f"Skipping {hdfsdir} as it isn't a dated directory")
+        logger.warning("Skipping %s as it isn't a dated directory", hdfsdir)
         return False
     return dirdate > start_date
 
@@ -44,9 +42,9 @@ def main(
     hsm_key_id,
     aws_default_region,
     hsm_key_param_name,
-    progress_file
+    progress_file,
 ):
-    dates = get_auditlog_list(start_date)
+    dates = get_auditlog_list(start_date, src_hdfs_dir)
     for day in dates:
         copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir,day)}", tmp_dir)
         encrypt_and_upload_files(
@@ -57,25 +55,28 @@ def main(
             aws_default_region,
             hsm_key_param_name,
         )
-        update_progress_file(progress_file, day)
+        update_progress_file(progress_file, day.split("/")[-1])
         clean_dir(tmp_dir)
 
 
 def update_progress_file(progress_file, completed_date):
-    with open(progress_file, "w") as f:
-        f.write(completed_date)
+    with open(progress_file, "w") as out_file:
+        out_file.write(completed_date)
 
 
 def encrypt_and_upload_files(
     tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name
 ):
-    hsm_key_file = b64decode(get_hsm_key(hsm_key_param_name))
+    hsm_key_file = b64decode(get_hsm_key(hsm_key_param_name, aws_default_region))
     hsm_key = RSA.import_key(hsm_key_file)
-    for root, dirs, files in os.walk(tmp_dir):
+    for root, _, files in os.walk(tmp_dir):
         for name in files:
             session_key = get_random_bytes(16)
             # Session key gets encrypted with RSA HSM public key
-            cipher_rsa = PKCS1_OAEP.new(hsm_key)
+            # This encryption cipher makes us compatible with DKS
+            cipher_rsa = PKCS1_OAEP.new(
+                key=hsm_key, hashAlgo=SHA256, mgfunc=lambda x, y: pss.MGF1(x, y, SHA1)
+            )
             enc_session_key = cipher_rsa.encrypt(session_key)
             # Data gets encrypted with AES session key (session_key)
             cipher_aes = AES.new(session_key, AES.MODE_EAX)
@@ -94,20 +95,20 @@ def encrypt_and_upload_files(
             )
 
 
-def get_auditlog_list(start_date):
+def get_auditlog_list(start_date, src_hdfs_dir):
     logger.info("Finding all auditlogs to process")
     if start_date is not None:
-        logger.info(f"Excluding entries older than {start_date}")
+        logger.info("Excluding entries older than %s", start_date)
     try:
         process = subprocess.run(
-            ["hdfs", "dfs", "-ls", "-C", "/etl/uc/auditlog"],
+            ["hdfs", "dfs", "-ls", "-C", src_hdfs_dir],
             check=True,
             stdout=subprocess.PIPE,
             universal_newlines=True,
         )
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Couldn't list auditlog entries in HDFS: {e}")
-        raise e
+    except subprocess.CalledProcessError as exc:
+        logger.error("Couldn't list auditlog entries in HDFS: %s", exc)
+        raise exc
     # skip the last line of output as it's always blank
     alldates = process.stdout.split("\n")[0:-1]
     if start_date is None:
@@ -118,37 +119,35 @@ def get_auditlog_list(start_date):
 
 
 def copy_files_from_hdfs(hdfs_dir, tmp_dir):
-    logger.info(f"Retrieving {hdfs_dir} from HDFS")
-    os.mkdir(tmp_dir)
+    logger.info("Retrieving %s from HDFS", hdfs_dir)
+    os.makedirs(tmp_dir, exist_ok=True)
     try:
-        process = subprocess.run(
+        subprocess.run(
             ["hdfs", "dfs", "-copyToLocal", hdfs_dir, tmp_dir],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
         )
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Couldn't copy files from HDFS: {e}")
-        raise e
-
-
-def today():
-    return str(date.today())
+    except subprocess.CalledProcessError as exc:
+        logger.error("Couldn't copy files from HDFS: %s", exc)
+        raise exc
 
 
 def upload_to_s3(
     enc_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region
 ):
-    # Upload files to S3
-    encrypted_file_name = pjoin(tmp_dir, enc_file)
-    logger.info(f"Uploading {encrypted_file_name} to S3 ")
+    day = os.path.dirname(enc_file).split("/")[-1]
+    destination_file_name = f"{s3_prefix}{day}/{os.path.basename(enc_file)}"
+    logger.info(
+        "Uploading %s to s3://%s/%s", enc_file, s3_bucket, destination_file_name
+    )
     s3_client = get_client("s3", aws_default_region)
-    with open(encrypted_file_name, "rb") as data:
+    with open(enc_file, "rb") as data:
         s3_client.upload_fileobj(
             data,
             s3_bucket,
-            f"{s3_prefix}/{today()}/{basename(enc_file)}",
+            destination_file_name,
             ExtraArgs={"Metadata": s3_object_metadata},
         )
 
@@ -157,28 +156,37 @@ def get_client(service_name, aws_default_region):
     return boto3.client(service_name, region_name=aws_default_region)
 
 
-def get_hsm_key(hsm_key_param_name):
+def get_hsm_key(hsm_key_param_name, aws_default_region):
     ssm_client = get_client("ssm", aws_default_region)
-    return ssm_client.get_parameter(Name=hsm_key_param_name, WithDecryption=True)['Parameter']['Value']
+    return ssm_client.get_parameter(Name=hsm_key_param_name, WithDecryption=True)[
+        "Parameter"
+    ]["Value"]
+
 
 def clean_dir(tmp_dir):
     if os.path.exists(tmp_dir):
-       logger.info("Cleaning temp_dir")
-       shutil.rmtree(tmp_dir)
+        logger.info("Cleaning temp_dir")
+        shutil.rmtree(tmp_dir)
 
 
 def find_start_date(progress_file):
+    start_date = None
+
     try:
-        with open(progress_file, "r") as f:
-            start_datestr = f.read().strip("\n")
+        with open(progress_file, "r") as in_file:
+            start_datestr = in_file.read().strip("\n")
             start_date = datetime.datetime.strptime(start_datestr, "%Y-%m-%d")
-    except ValueError:
+    except ValueError as exc:
         logger.error(
-            f"Couldn't parse date in {progress_file}, it should be in %Y-%m-%d format"
+            "Couldn't parse date in %s, it should be in YYYY-MM-DD format",
+            progress_file,
         )
-        raise ValueError
+
+        raise exc
     except IOError:
-        logger.warn(f"No progress file found at {progress_file}; processing all dates")
+        logger.warning(
+            "No progress file found at %s; processing all dates", progress_file
+        )
 
     return start_date
 
@@ -217,31 +225,27 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    tmp_dir = args.tmp
-    src_hdfs_dir = args.src_hdfs_dir
-    s3_bucket = args.s3_publish_bucket
-    s3_prefix = args.s3_prefix
-    hsm_key_id = args.hsm_key_id
-    hsm_key_param_name = args.hsm_key_param_name
-    aws_default_region = args.aws_default_region
 
     try:
-        clean_dir(tmp_dir)
-        progress_file = "/home/aws-audit/audit-data-export-progress.log"
-        start_date = find_start_date(progress_file)
+        clean_dir(args.tmp)
+        s_date = find_start_date(args.progress_file)
         main(
-            start_date,
-            src_hdfs_dir,
-            tmp_dir,
-            s3_bucket,
-            s3_prefix,
-            hsm_key_id,
-            aws_default_region,
-            hsm_key_param_name,
-            progress_file
+            s_date,
+            args.src_hdfs_dir,
+            args.tmp,
+            args.s3_publish_bucket,
+            args.s3_prefix,
+            args.hsm_key_id,
+            args.aws_default_region,
+            args.hsm_key_param_name,
+            args.progress_file,
         )
-    except Exception as ex:
-        logger.error("Error processing files")
-        raise ex
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] == "ExpiredTokenException":
+            logger.warning("AWS credentials expired. Exiting")
+            sys.exit(0)
+    except Exception as exc:
+        logger.error("Error processing files: %s", exc)
+        raise exc
     finally:
-        clean_dir(tmp_dir)
+        clean_dir(args.tmp)

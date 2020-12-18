@@ -2,6 +2,8 @@ jobs:
   - name: production
     max_in_flight: 1
     plan:
+      - get: 1h
+        trigger: true
       - get: dataworks-audit-data-ingest
         trigger: false
       - .: (( inject meta.plan.create-ssh-credentials ))
