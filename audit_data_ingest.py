@@ -74,9 +74,7 @@ def encrypt_and_upload_files(
             session_key = get_random_bytes(16)
             # Session key gets encrypted with RSA HSM public key
             # This encryption cipher makes us compatible with DKS
-            cipher_rsa = PKCS1_OAEP.new(
-                key=hsm_key, hashAlgo=SHA256, mgfunc=lambda x, y: pss.MGF1(x, y, SHA1)
-            )
+            cipher_rsa = PKCS1_OAEP.new(key=hsm_key, hashAlgo=SHA256)
             enc_session_key = cipher_rsa.encrypt(session_key)
             # Data gets encrypted with AES session key (session_key)
             cipher_aes = AES.new(session_key, AES.MODE_EAX)
