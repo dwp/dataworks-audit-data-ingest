@@ -2,7 +2,7 @@ resources:
 - name: dataworks-audit-data-ingest
   type: git
   source:
-    branch: master
+    branch: PARALLEL
     repository: dwp/dataworks-audit-data-ingest
     uri: https://github.com/dwp/dataworks-audit-data-ingest.git
   check_every: 5m
