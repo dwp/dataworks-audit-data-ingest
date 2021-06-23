@@ -47,6 +47,7 @@ def main(
     dates = get_auditlog_list(start_date, src_hdfs_dir)
     for day in dates:
         copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
+        logger.info(f"Uploading files in parallel from {tmp_dir}")
         encrypt_and_upload_files_parallel(
             tmp_dir,
             s3_bucket,
