@@ -108,6 +108,7 @@ def encrypt_and_upload_file(hsm_key, s3_bucket, s3_prefix, aws_default_region, r
         "x-amz-meta-ciphertext": b64encode(enc_session_key).decode(),
         "x-amz-meta-datakeyencryptionkeyid": hsm_key_id,
     }
+    logger.info(f"Uploading {out_file} to {s3_bucket}/{s3_prefix}")
     upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region)
 
 

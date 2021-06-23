@@ -14,3 +14,7 @@ bootstrap: ## Bootstrap local environment for first use
 git-hooks: ## Set up hooks in .githooks
 	@git submodule update --init .githooks ; \
 	git config core.hooksPath .githooks \
+
+.PHONY: concourse-login
+concourse-login: ## Login to concourse using Fly
+	fly -t concourse login -c https://concourse.service.dw/ -k -n dataworks
