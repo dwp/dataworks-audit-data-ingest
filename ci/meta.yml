@@ -98,17 +98,8 @@ meta:
               sudo mkdir -p /home/$EDGENODE_USERNAME/.aws/
               sudo cp /tmp/credentials /home/$EDGENODE_USERNAME/.aws/
               sudo chown $EDGENODE_USERNAME:$EDGENODE_USERNAME /home/$EDGENODE_USERNAME/.aws/
-
-              sudo -E su $EDGENODE_USERNAME -c 'echo python3 /tmp/audit_data_ingest.py \
-                  --src-hdfs-dir /etl/uc/auditlog/2021-06-22 \
-                  --s3-publish-bucket $S3_BUCKET_ID \
-                  --s3-prefix $S3_PREFIX \
-                  --hsm-key-id $CLOUDHSM_KEY_ID \
-                  --hsm-key-param-name $HSM_KEY_PARAM_NAME \
-                  --progress-file /home/$EDGENODE_USERNAME/audit-data-progress.log'
-
               sudo -E su $EDGENODE_USERNAME -c 'python3 /tmp/audit_data_ingest.py \
-                  --src-hdfs-dir /etl/uc/auditlog/2021-06-22 \
+                  --src-hdfs-dir $SRC_HDFS_DIR \
                   --s3-publish-bucket $S3_BUCKET_ID \
                   --s3-prefix $S3_PREFIX \
                   --hsm-key-id $CLOUDHSM_KEY_ID \
