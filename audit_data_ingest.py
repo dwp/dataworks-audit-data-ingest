@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import zlib
 from base64 import b64encode, b64decode
-from concurrent.futures import ProcessPoolExecutor, wait
+from concurrent.futures import ProcessPoolExecutor, wait, ThreadPoolExecutor
 
 import boto3
 from Crypto.Cipher import AES, PKCS1_OAEP
@@ -46,9 +46,10 @@ def main(
 ):
     dates = get_auditlog_list(start_date, src_hdfs_dir)
     for day in dates:
+        logger.info(f"Processing {day}")
         copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
         logger.info(f"Uploading files in parallel from {tmp_dir}")
-        encrypt_and_upload_files_parallel(
+        succeeded = encrypt_and_upload_files_parallel(
             tmp_dir,
             s3_bucket,
             s3_prefix,
@@ -57,8 +58,11 @@ def main(
             hsm_key_param_name,
             processes
         )
-        update_progress_file(progress_file, day.split("/")[-1])
         clean_dir(tmp_dir)
+        if succeeded:
+            update_progress_file(progress_file, day.split("/")[-1])
+        else:
+            raise RuntimeError(f"Failed to process {day}")
 
 
 def update_progress_file(progress_file, completed_date):
@@ -69,29 +73,36 @@ def update_progress_file(progress_file, completed_date):
 def encrypt_and_upload_files_parallel(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region,
                                       hsm_key_param_name, processes):
     hsm_key_file = b64decode(get_hsm_key(hsm_key_param_name, aws_default_region))
-    hsm_key = RSA.import_key(hsm_key_file)
     futures = []
-    files = []
-    with ProcessPoolExecutor() if processes is None else ProcessPoolExecutor(max_workers=processes) as executor:
+    names = []
+    logger.info(f"Number of parallel processes: {processes}.")
+    with ThreadPoolExecutor(max_workers=processes) as executor:
         for root, _, files in os.walk(tmp_dir):
             for name in files:
-                future = executor.submit(encrypt_and_upload_file, hsm_key, s3_bucket, s3_prefix, aws_default_region,
+                logger.info(f"Submitting {name} to the executor")
+                future = executor.submit(encrypt_and_upload_file, hsm_key_file, s3_bucket, s3_prefix,
+                                         aws_default_region,
                                          root, name, hsm_key_id)
                 futures.append(future)
-                files.append(name)
+                names.append(name)
 
-    wait(futures)
-    executor.shutdown()
+        logger.info(f"Waiting for futures.")
+        wait(futures)
+        logger.info("Futures completed")
+        executor.shutdown()
+        succeeded = True
+        for file, future in zip(names, futures):
+            try:
+                result = future.result()
+                logger.info(f"{file} succeeded: {result}")
+            except:
+                logger.info(f"{file} failed with exception: '{future.exception()}'")
+                succeeded = False
+        return succeeded
 
-    for file, future in zip(files, futures):
-        try:
-            result = future.result()
-            logger.info(f"{file} succeeded: {result}")
-        except:
-            logger.info(f"{file} failed with exception: '{future.exception()}'")
 
-
-def encrypt_and_upload_file(hsm_key, s3_bucket, s3_prefix, aws_default_region, root, name, hsm_key_id):
+def encrypt_and_upload_file(hsm_key_file, s3_bucket, s3_prefix, aws_default_region, root, name, hsm_key_id):
+    hsm_key = RSA.import_key(hsm_key_file)
     session_key = get_random_bytes(16)
     # Session key gets encrypted with RSA HSM public key
     # This encryption cipher makes us compatible with DKS
@@ -105,11 +116,10 @@ def encrypt_and_upload_file(hsm_key, s3_bucket, s3_prefix, aws_default_region, r
         compressed_data = zlib.compress(fin.read())
         fout.write(cipher_aes.encrypt(compressed_data))
     s3_object_metadata = {
-        "x-amz-meta-iv": b64encode(cipher_aes.nonce).decode(),
-        "x-amz-meta-ciphertext": b64encode(enc_session_key).decode(),
-        "x-amz-meta-datakeyencryptionkeyid": hsm_key_id,
+        "iv": b64encode(cipher_aes.nonce).decode(),
+        "ciphertext": b64encode(enc_session_key).decode(),
+        "datakeyencryptionkeyid": hsm_key_id,
     }
-    logger.info(f"Uploading {out_file} to {s3_bucket}/{s3_prefix}")
     upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region)
 
 
@@ -163,6 +173,7 @@ def get_auditlog_list(start_date, src_hdfs_dir):
         dates = alldates
     else:
         dates = filter(lambda hdfsdir: filter_date(hdfsdir, start_date), alldates)
+
     return dates
 
 
@@ -187,9 +198,7 @@ def upload_to_s3(
 ):
     day = os.path.dirname(enc_file).split("/")[-1]
     destination_file_name = f"{s3_prefix}{day}/{os.path.basename(enc_file)}"
-    logger.info(
-        "Uploading %s to s3://%s/%s", enc_file, s3_bucket, destination_file_name
-    )
+    logger.info("Uploading %s to s3://%s/%s", enc_file, s3_bucket, destination_file_name)
     s3_client = get_client("s3", aws_default_region)
     try:
         with open(enc_file, "rb") as data:
@@ -199,8 +208,9 @@ def upload_to_s3(
                 destination_file_name,
                 ExtraArgs={"Metadata": s3_object_metadata},
             )
+            logger.info("Uploaded %s to s3://%s/%s", enc_file, s3_bucket, destination_file_name)
     except Exception as exc:
-        logger.error("Error uploading %s to S3", enc_file)
+        logger.error("Error uploading %s to S3: %s", enc_file, exc)
         raise exc
 
 
