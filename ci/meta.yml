@@ -41,7 +41,7 @@ meta:
 
     execute-code:
       task: execute-code
-      attempts: 36
+#      attempts: 36
       timeout: 20m
       config:
         platform: linux
