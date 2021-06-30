@@ -51,7 +51,7 @@ jobs:
     plan:
 #      - get: 12h
 #        trigger: true
-      - get: dataworks-audit-data-ingest
+      - get: dataworks-audit-data-ingest-equalities
         trigger: false
       - .: (( inject meta.plan.create-ssh-credentials-equalities ))
         config:

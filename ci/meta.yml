@@ -120,7 +120,7 @@ meta:
               ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'kinit -kt /home/$EDGENODE_USERNAME/$EDGENODE_USERNAME.keytab $EDGENODE_USERNAME@DW'"
         inputs:
           - name: ssh-credentials
-            
+
     execute-code:
       task: execute-code
       attempts: 10
@@ -225,4 +225,4 @@ meta:
               ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "bash +x /tmp/equalities.sh"
         inputs:
           - name: ssh-credentials-equalities
-          - name: dataworks-audit-data-ingest
+          - name: dataworks-audit-data-ingest-equalities
