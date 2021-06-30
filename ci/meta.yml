@@ -1,69 +1,5 @@
 meta:
   plan:
-    kinit:
-      task: kinit
-      config:
-        platform: linux
-        image_resource:
-          type: docker-image
-          source:
-            repository: ((docker-awscli-ubuntu.repository))
-            tag: ((docker-awscli-ubuntu.version))
-        run:
-          path: sh
-          args:
-            - -exc
-            - |
-              cp -R ssh-credentials ~/.ssh
-              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'kinit -kt /home/$EDGENODE_USERNAME/$EDGENODE_USERNAME.keytab $EDGENODE_USERNAME@DW'"
-        inputs:
-          - name: ssh-credentials
-
-    deploy-code:
-      task: deploy-code
-      config:
-        platform: linux
-        image_resource:
-          type: docker-image
-          source:
-            repository: ((docker-awscli-ubuntu.repository))
-            tag: ((docker-awscli-ubuntu.version))
-        run:
-          path: sh
-          args:
-            - -exc
-            - |
-              cp -R ssh-credentials ~/.ssh
-              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest/audit_data_ingest.py concourse@$EDGENODE_HOSTNAME:/tmp/
-        inputs:
-          - name: ssh-credentials
-          - name: dataworks-audit-data-ingest
-
-    execute-code:
-      task: execute-code
-      attempts: 36
-      timeout: 20m
-      config:
-        platform: linux
-        image_resource:
-          type: docker-image
-          source:
-            repository: ((docker-awscli-ubuntu.repository))
-            tag: ((docker-awscli-ubuntu.version))
-        run:
-          path: sh
-          args:
-            - -exc
-            - |
-              cp -R ssh-credentials ~/.ssh
-              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no aws-session/credentials concourse@$EDGENODE_HOSTNAME:/tmp/
-              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ssh-credentials/wrapper.sh concourse@$EDGENODE_HOSTNAME:/tmp/
-              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "bash +x /tmp/wrapper.sh"
-        inputs:
-          - name: ssh-credentials
-          - name: aws-session
-          - name: dataworks-audit-data-ingest
-
     create-ssh-credentials:
       task: create-ssh-credentials
       attempts: 15
@@ -147,13 +83,146 @@ meta:
               unset AWS_SECRET_ACCESS_KEY
               unset AWS_SESSION_TOKEN
 
-#              export AWS_ROLE_ARN=arn:aws:iam::$ACCOUNT:role/ucrs_kms_decrypt
-#              source /assume-role
-#
-#              cat <<EOF>> aws-session/credentials
-#              [decrypt]
-#              aws_access_key_id = $AWS_ACCESS_KEY_ID
-#              aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
-#              aws_session_token = $AWS_SESSION_TOKEN
-#
-#              EOF
+    deploy-code:
+      task: deploy-code
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli-ubuntu.repository))
+            tag: ((docker-awscli-ubuntu.version))
+        run:
+          path: sh
+          args:
+            - -exc
+            - |
+              cp -R ssh-credentials ~/.ssh
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest/audit_data_ingest.py concourse@$EDGENODE_HOSTNAME:/tmp/
+        inputs:
+          - name: ssh-credentials
+          - name: dataworks-audit-data-ingest
+    kinit:
+      task: kinit
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli-ubuntu.repository))
+            tag: ((docker-awscli-ubuntu.version))
+        run:
+          path: sh
+          args:
+            - -exc
+            - |
+              cp -R ssh-credentials ~/.ssh
+              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "sudo su - $EDGENODE_USERNAME -c 'kinit -kt /home/$EDGENODE_USERNAME/$EDGENODE_USERNAME.keytab $EDGENODE_USERNAME@DW'"
+        inputs:
+          - name: ssh-credentials
+            
+    execute-code:
+      task: execute-code
+      attempts: 10
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli-ubuntu.repository))
+            tag: ((docker-awscli-ubuntu.version))
+        run:
+          path: sh
+          args:
+            - -exc
+            - |
+              cp -R ssh-credentials ~/.ssh
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no aws-session/credentials concourse@$EDGENODE_HOSTNAME:/tmp/
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ssh-credentials/wrapper.sh concourse@$EDGENODE_HOSTNAME:/tmp/
+              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "bash +x /tmp/wrapper.sh"
+        inputs:
+          - name: ssh-credentials
+          - name: aws-session
+          - name: dataworks-audit-data-ingest
+
+    create-ssh-credentials-equalities:
+      task: create-ssh-credentials-equalities
+      attempts: 15
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli.repository))
+            version: ((docker-awscli.version))
+            tag: ((docker-awscli.version))
+        outputs:
+          - name: ssh-credentials-equalities
+        run:
+          path: sh
+          dir: ssh-credentials
+          args:
+            - -exc
+            - |
+              cat <<EOF> id_rsa
+              $SSH_PRIVATE_KEY
+              EOF
+              cat <<EOF> ./config
+              Host *
+                  User concourse
+                  StrictHostKeyChecking no
+              EOF
+              chmod 400 id_rsa
+              cat <<EOF> equalities.sh
+              export HTTPS_PROXY="$PROXY"
+              export https_proxy="$PROXY"
+              sudo -E su $EDGENODE_USERNAME -c 'python3 /tmp/equalities_data_ingest.py \
+                  --src-hdfs-dir $SRC_HDFS_DIR_EQUALITIES \
+                  --s3-publish-bucket $S3_BUCKET_ID \
+                  --s3-prefix $S3_PREFIX_EQUALITIES \
+                  --hsm-key-id $CLOUDHSM_KEY_ID \
+                  --hsm-key-param-name $HSM_KEY_PARAM_NAME \
+                  --progress-file /home/$EDGENODE_USERNAME/equalities-data-progress.log'
+              EOF
+
+    deploy-code-equalities:
+      task: deploy-code-equalities
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli-ubuntu.repository))
+            tag: ((docker-awscli-ubuntu.version))
+        run:
+          path: sh
+          args:
+            - -exc
+            - |
+              cp -R ssh-credentials ~/.ssh
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest/audit_data_ingest.py concourse@$EDGENODE_HOSTNAME:/tmp/equalities_data_ingest.py
+        inputs:
+          - name: ssh-credentials-equalities
+          - name: dataworks-audit-data-ingest-equalities
+
+    execute-code-equalities:
+      task: execute-code-equalities
+      attempts: 10
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli-ubuntu.repository))
+            tag: ((docker-awscli-ubuntu.version))
+        run:
+          path: sh
+          args:
+            - -exc
+            - |
+              cp -R ssh-credentials ~/.ssh
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ssh-credentials/equalities.sh concourse@$EDGENODE_HOSTNAME:/tmp/
+              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "bash +x /tmp/equalities.sh"
+        inputs:
+          - name: ssh-credentials-equalities
+          - name: dataworks-audit-data-ingest
