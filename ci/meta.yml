@@ -160,7 +160,7 @@ meta:
           - name: ssh-credentials-equalities
         run:
           path: sh
-          dir: ssh-credentials
+          dir: ssh-credentials-equalities
           args:
             - -exc
             - |
@@ -176,6 +176,8 @@ meta:
               cat <<EOF> equalities.sh
               export HTTPS_PROXY="$PROXY"
               export https_proxy="$PROXY"
+              sudo -E su $EDGENODE_USERNAME -c 'id -a'
+              sudo -E su $EDGENODE_USERNAME -c 'hdfs dfs -ls /etl/uc/kafka/equality/'
               sudo -E su $EDGENODE_USERNAME -c 'python3 /tmp/equalities_data_ingest.py \
                   --src-hdfs-dir $SRC_HDFS_DIR_EQUALITIES \
                   --s3-publish-bucket $S3_BUCKET_ID \
@@ -199,15 +201,15 @@ meta:
           args:
             - -exc
             - |
-              cp -R ssh-credentials ~/.ssh
-              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest/audit_data_ingest.py concourse@$EDGENODE_HOSTNAME:/tmp/equalities_data_ingest.py
+              cp -R ssh-credentials-equalities ~/.ssh
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no dataworks-audit-data-ingest-equalities/audit_data_ingest.py concourse@$EDGENODE_HOSTNAME:/tmp/equalities_data_ingest.py
         inputs:
           - name: ssh-credentials-equalities
           - name: dataworks-audit-data-ingest-equalities
 
     execute-code-equalities:
       task: execute-code-equalities
-      attempts: 10
+#      attempts: 10
       config:
         platform: linux
         image_resource:
@@ -220,8 +222,8 @@ meta:
           args:
             - -exc
             - |
-              cp -R ssh-credentials ~/.ssh
-              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ssh-credentials/equalities.sh concourse@$EDGENODE_HOSTNAME:/tmp/
+              cp -R ssh-credentials-equalities ~/.ssh
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ssh-credentials-equalities/equalities.sh concourse@$EDGENODE_HOSTNAME:/tmp/
               ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "bash +x /tmp/equalities.sh"
         inputs:
           - name: ssh-credentials-equalities
