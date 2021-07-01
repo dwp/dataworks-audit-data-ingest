@@ -208,7 +208,7 @@ meta:
 
     execute-code-equalities:
       task: execute-code-equalities
-#      attempts: 10
+      attempts: 10
       config:
         platform: linux
         image_resource:
