@@ -176,14 +176,7 @@ meta:
               cat <<EOF> equalities.sh
               export HTTPS_PROXY="$PROXY"
               export https_proxy="$PROXY"
-              sudo -E su $EDGENODE_USERNAME -c 'python3 /tmp/equalities_data_ingest.py \
-                  --src-hdfs-dir $SRC_HDFS_DIR_EQUALITIES \
-                  --s3-publish-bucket $S3_BUCKET_ID \
-                  --s3-prefix $S3_PREFIX_EQUALITIES \
-                  --hsm-key-id $CLOUDHSM_KEY_ID \
-                  --hsm-key-param-name $HSM_KEY_PARAM_NAME \
-                  --tmp /data/auditlogs/equalities \
-                  --progress-file /home/$EDGENODE_USERNAME/equalities-data-progress.log'
+              sudo -E su $EDGENODE_USERNAME -c 'hdfs dfs -copyToLocal /etl/uc/kafka/equality/2020-08-10 /data/auditlogs/equalities'
               EOF
 
     deploy-code-equalities:
