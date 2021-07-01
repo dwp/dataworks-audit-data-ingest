@@ -177,7 +177,8 @@ meta:
               export HTTPS_PROXY="$PROXY"
               export https_proxy="$PROXY"
               sudo -E su $EDGENODE_USERNAME -c 'id -a'
-              sudo -E su $EDGENODE_USERNAME -c 'hdfs dfs -ls /etl/uc/kafka/equality/'
+              sudo -E su $EDGENODE_USERNAME -c 'hdfs dfs -ls /etl/uc/'
+              sudo -E su $EDGENODE_USERNAME -c 'hdfs dfs -ls /etl/uc/kafka/equality/2021-06-29'
               sudo -E su $EDGENODE_USERNAME -c 'python3 /tmp/equalities_data_ingest.py \
                   --src-hdfs-dir $SRC_HDFS_DIR_EQUALITIES \
                   --s3-publish-bucket $S3_BUCKET_ID \

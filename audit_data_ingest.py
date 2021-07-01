@@ -46,23 +46,25 @@ def main(
 ):
     dates = get_auditlog_list(start_date, src_hdfs_dir)
     for day in dates:
-        logger.info(f"Processing {day} from {src_hdfs_dir}")
-        # copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
-        # logger.info(f"Uploading files in parallel from {tmp_dir}")
-        # succeeded = encrypt_and_upload_files_parallel(
-        #     tmp_dir,
-        #     s3_bucket,
-        #     s3_prefix,
-        #     hsm_key_id,
-        #     aws_default_region,
-        #     hsm_key_param_name,
-        #     processes
-        # )
-        # clean_dir(tmp_dir)
-        # if succeeded:
-        #     update_progress_file(progress_file, day.split("/")[-1])
-        # else:
-        #     raise RuntimeError(f"Failed to process {day}")
+        if day.endswith("2021-06-30"):
+            logger.info(f"Processing {day} from {src_hdfs_dir}")
+            copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
+            logger.info(f"Uploading files in parallel from {tmp_dir}")
+            succeeded = encrypt_and_upload_files_parallel(
+                tmp_dir,
+                s3_bucket,
+                s3_prefix,
+                hsm_key_id,
+                aws_default_region,
+                hsm_key_param_name,
+                processes
+            )
+            clean_dir(tmp_dir)
+            if succeeded:
+                pass
+                # update_progress_file(progress_file, day.split("/")[-1])
+            else:
+                raise RuntimeError(f"Failed to process {day}")
 
 
 def update_progress_file(progress_file, completed_date):
@@ -154,7 +156,7 @@ def encrypt_and_upload_files(
 
 
 def get_auditlog_list(start_date, src_hdfs_dir):
-    logger.info(f"Finding all auditlogs to process, start_date: {start_date}")
+    logger.info(f"Finding all files to process, start_date: {start_date}")
     if start_date is not None:
         logger.info("Excluding entries older than %s", start_date)
     try:
