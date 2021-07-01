@@ -125,36 +125,6 @@ def encrypt_and_upload_file(hsm_key_file, s3_bucket, s3_prefix, aws_default_regi
     upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region)
 
 
-def encrypt_and_upload_files(
-        tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region, hsm_key_param_name
-):
-    hsm_key_file = b64decode(get_hsm_key(hsm_key_param_name, aws_default_region))
-    hsm_key = RSA.import_key(hsm_key_file)
-
-    for root, _, files in os.walk(tmp_dir):
-        for name in files:
-            session_key = get_random_bytes(16)
-            # Session key gets encrypted with RSA HSM public key
-            # This encryption cipher makes us compatible with DKS
-            cipher_rsa = PKCS1_OAEP.new(key=hsm_key, hashAlgo=SHA256)
-            enc_session_key = cipher_rsa.encrypt(session_key)
-            # Data gets encrypted with AES session key (session_key)
-            cipher_aes = AES.new(session_key, AES.MODE_EAX)
-            in_file = os.path.join(root, name)
-            out_file = in_file + ".gz.enc"
-            with open(in_file, "rb") as fin, open(out_file, "wb") as fout:
-                compressed_data = zlib.compress(fin.read())
-                fout.write(cipher_aes.encrypt(compressed_data))
-            s3_object_metadata = {
-                "x-amz-meta-iv": b64encode(cipher_aes.nonce).decode(),
-                "x-amz-meta-ciphertext": b64encode(enc_session_key).decode(),
-                "x-amz-meta-datakeyencryptionkeyid": hsm_key_id,
-            }
-            upload_to_s3(
-                out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region
-            )
-
-
 def get_auditlog_list(start_date, src_hdfs_dir):
     logger.info(f"Finding all files to process, start_date: {start_date}")
     if start_date is not None:
