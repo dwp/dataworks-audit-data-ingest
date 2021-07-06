@@ -187,7 +187,7 @@ def upload_to_s3(
         raise exc
 
 
-def get_client(service_name, aws_default_region, retries):
+def get_client(service_name, aws_default_region, retries=10):
     config = Config(
         retries={
             'max_attempts': retries,
