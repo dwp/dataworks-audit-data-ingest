@@ -16,6 +16,7 @@ from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
@@ -42,7 +43,8 @@ def main(
         aws_default_region,
         hsm_key_param_name,
         progress_file,
-        processes
+        processes,
+        retries
 ):
     dates = get_auditlog_list(start_date, src_hdfs_dir)
     for day in dates:
@@ -56,7 +58,8 @@ def main(
             hsm_key_id,
             aws_default_region,
             hsm_key_param_name,
-            processes
+            processes,
+            retries
         )
         clean_dir(tmp_dir)
         if succeeded:
@@ -71,7 +74,7 @@ def update_progress_file(progress_file, completed_date):
 
 
 def encrypt_and_upload_files_parallel(tmp_dir, s3_bucket, s3_prefix, hsm_key_id, aws_default_region,
-                                      hsm_key_param_name, processes):
+                                      hsm_key_param_name, processes, retries):
     hsm_key_file = b64decode(get_hsm_key(hsm_key_param_name, aws_default_region))
     futures = []
     names = []
@@ -82,7 +85,7 @@ def encrypt_and_upload_files_parallel(tmp_dir, s3_bucket, s3_prefix, hsm_key_id,
                 logger.info(f"Submitting {name} to the executor")
                 future = executor.submit(encrypt_and_upload_file, hsm_key_file, s3_bucket, s3_prefix,
                                          aws_default_region,
-                                         root, name, hsm_key_id)
+                                         root, name, hsm_key_id, retries)
                 futures.append(future)
                 names.append(name)
 
@@ -101,7 +104,7 @@ def encrypt_and_upload_files_parallel(tmp_dir, s3_bucket, s3_prefix, hsm_key_id,
         return succeeded
 
 
-def encrypt_and_upload_file(hsm_key_file, s3_bucket, s3_prefix, aws_default_region, root, name, hsm_key_id):
+def encrypt_and_upload_file(hsm_key_file, s3_bucket, s3_prefix, aws_default_region, root, name, hsm_key_id, retries):
     hsm_key = RSA.import_key(hsm_key_file)
     session_key = get_random_bytes(16)
     # Session key gets encrypted with RSA HSM public key
@@ -120,7 +123,7 @@ def encrypt_and_upload_file(hsm_key_file, s3_bucket, s3_prefix, aws_default_regi
         "ciphertext": b64encode(enc_session_key).decode(),
         "datakeyencryptionkeyid": hsm_key_id,
     }
-    upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region)
+    upload_to_s3(out_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region, retries)
 
 
 def get_auditlog_list(start_date, src_hdfs_dir):
@@ -164,12 +167,12 @@ def copy_files_from_hdfs(hdfs_dir, tmp_dir):
 
 
 def upload_to_s3(
-        enc_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region
+        enc_file, s3_object_metadata, s3_bucket, s3_prefix, aws_default_region, retries
 ):
     day = os.path.dirname(enc_file).split("/")[-1]
     destination_file_name = f"{s3_prefix}{day}/{os.path.basename(enc_file)}"
     logger.info("Uploading %s to s3://%s/%s", enc_file, s3_bucket, destination_file_name)
-    s3_client = get_client("s3", aws_default_region)
+    s3_client = get_client("s3", aws_default_region, retries)
     try:
         with open(enc_file, "rb") as data:
             s3_client.upload_fileobj(
@@ -184,8 +187,14 @@ def upload_to_s3(
         raise exc
 
 
-def get_client(service_name, aws_default_region):
-    return boto3.client(service_name, region_name=aws_default_region)
+def get_client(service_name, aws_default_region, retries=10):
+    config = Config(
+        retries={
+            'max_attempts': retries,
+            'mode': 'standard'
+        }
+    )
+    return boto3.client(service_name, region_name=aws_default_region, config=config)
 
 
 def get_hsm_key(hsm_key_param_name, aws_default_region):
@@ -249,6 +258,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--retries", type=int,
+        default=10,
+        required=False,
+        help="How many processes to run in parallel",
+    )
+
+    parser.add_argument(
         "--hsm-key-id",
         required=True,
         help="HSM Key ID in 'cloudhsm:privkeyid:pubkeyid' format",
@@ -281,7 +297,8 @@ if __name__ == "__main__":
             args.aws_default_region,
             args.hsm_key_param_name,
             args.progress_file,
-            args.processes
+            args.processes,
+            args.retries
         )
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "ExpiredTokenException":
