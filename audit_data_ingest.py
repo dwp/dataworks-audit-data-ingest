@@ -48,25 +48,24 @@ def main(
 ):
     dates = get_auditlog_list(start_date, src_hdfs_dir)
     for day in dates:
-        if not day.endswith("2020-08-10"):
-            logger.info(f"Processing {day} from {src_hdfs_dir}")
-            copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
-            logger.info(f"Uploading files in parallel from {tmp_dir}")
-            succeeded = encrypt_and_upload_files_parallel(
-                tmp_dir,
-                s3_bucket,
-                s3_prefix,
-                hsm_key_id,
-                aws_default_region,
-                hsm_key_param_name,
-                processes,
-                retries
-            )
-            clean_dir(tmp_dir)
-            if succeeded:
-                update_progress_file(progress_file, day.split("/")[-1])
-            else:
-                raise RuntimeError(f"Failed to process {day}")
+        logger.info(f"Processing {day} from {src_hdfs_dir}")
+        copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
+        logger.info(f"Uploading files in parallel from {tmp_dir}")
+        succeeded = encrypt_and_upload_files_parallel(
+            tmp_dir,
+            s3_bucket,
+            s3_prefix,
+            hsm_key_id,
+            aws_default_region,
+            hsm_key_param_name,
+            processes,
+            retries
+        )
+        clean_dir(tmp_dir)
+        if succeeded:
+            update_progress_file(progress_file, day.split("/")[-1])
+        else:
+            raise RuntimeError(f"Failed to process {day}")
 
 
 def update_progress_file(progress_file, completed_date):
@@ -164,6 +163,11 @@ def copy_files_from_hdfs(hdfs_dir, tmp_dir):
         )
     except subprocess.CalledProcessError as exc:
         logger.error("Couldn't copy files from HDFS: %s", exc)
+        logger.error("Stdout:")
+        logger.error(exc.stdout)
+        logger.error("Stderr")
+        logger.error(exc.stderr)
+        logger.error("========")
         raise exc
 
 
