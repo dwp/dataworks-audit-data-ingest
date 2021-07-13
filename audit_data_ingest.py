@@ -71,6 +71,7 @@ def main(
             logger.error(f"Couldn't copy files from HDFS: %s", e)
             logger.error(e.stderr)
             logger.error(f"Skipping {day}")
+            update_progress_file(progress_file, day.split("/")[-1])
 
 
 def update_progress_file(progress_file, completed_date):
