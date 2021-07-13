@@ -69,7 +69,7 @@ def main(
                 raise RuntimeError(f"Failed to process {day}")
         except subprocess.CalledProcessError as e:
             logger.error(f"Couldn't copy files from HDFS: %s", e)
-            logger.error(exc.stderr)
+            logger.error(e.stderr)
             logger.error(f"Skipping {day}")
 
 
