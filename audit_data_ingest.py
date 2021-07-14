@@ -88,7 +88,6 @@ def encrypt_and_upload_files_parallel(tmp_dir, s3_bucket, s3_prefix, hsm_key_id,
     with ThreadPoolExecutor(max_workers=processes) as executor:
         for root, _, files in os.walk(tmp_dir):
             for name in files:
-                logger.info(f"Submitting {name} to the executor")
                 future = executor.submit(encrypt_and_upload_file, hsm_key_file, s3_bucket, s3_prefix,
                                          aws_default_region,
                                          root, name, hsm_key_id, retries)
@@ -103,7 +102,6 @@ def encrypt_and_upload_files_parallel(tmp_dir, s3_bucket, s3_prefix, hsm_key_id,
         for file, future in zip(names, futures):
             try:
                 result = future.result()
-                logger.info(f"{file} succeeded: {result}")
             except:
                 logger.info(f"{file} failed with exception: '{future.exception()}'")
                 succeeded = False
@@ -173,7 +171,6 @@ def upload_to_s3(
 ):
     day = os.path.dirname(enc_file).split("/")[-1]
     destination_file_name = f"{s3_prefix}{day}/{os.path.basename(enc_file)}"
-    logger.info("Uploading %s to s3://%s/%s", enc_file, s3_bucket, destination_file_name)
     s3_client = get_client("s3", aws_default_region, retries)
     try:
         with open(enc_file, "rb") as data:
@@ -183,7 +180,6 @@ def upload_to_s3(
                 destination_file_name,
                 ExtraArgs={"Metadata": s3_object_metadata},
             )
-            logger.info("Uploaded %s to s3://%s/%s", enc_file, s3_bucket, destination_file_name)
     except Exception as exc:
         logger.error("Error uploading %s to S3: %s", enc_file, exc)
         raise exc
