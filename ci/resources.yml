@@ -11,7 +11,7 @@ resources:
 - name: dataworks-audit-data-ingest-equalities
   type: git
   source:
-    branch: RUN_EQUALITIES
+    branch: REMAINS
     repository: dwp/dataworks-audit-data-ingest
     uri: https://github.com/dwp/dataworks-audit-data-ingest.git
   check_every: 5m
