@@ -49,25 +49,24 @@ def main(
     dates = get_auditlog_list(start_date, src_hdfs_dir)
     for day in dates:
         try:
-            if do_day(day):
-                logger.info(f"Processing {day} from {src_hdfs_dir}")
-                copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
-                logger.info(f"Uploading files in parallel from {tmp_dir}")
-                succeeded = encrypt_and_upload_files_parallel(
-                    tmp_dir,
-                    s3_bucket,
-                    s3_prefix,
-                    hsm_key_id,
-                    aws_default_region,
-                    hsm_key_param_name,
-                    processes,
-                    retries
-                )
-                clean_dir(tmp_dir)
-                if succeeded:
-                    update_progress_file(progress_file, day.split("/")[-1])
-                else:
-                    raise RuntimeError(f"Failed to process {day}")
+            logger.info(f"Processing {day} from {src_hdfs_dir}")
+            copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
+            logger.info(f"Uploading files in parallel from {tmp_dir}")
+            succeeded = encrypt_and_upload_files_parallel(
+                tmp_dir,
+                s3_bucket,
+                s3_prefix,
+                hsm_key_id,
+                aws_default_region,
+                hsm_key_param_name,
+                processes,
+                retries
+            )
+            clean_dir(tmp_dir)
+            if succeeded:
+                update_progress_file(progress_file, day.split("/")[-1])
+            else:
+                raise RuntimeError(f"Failed to process {day}")
         except subprocess.CalledProcessError as e:
             logger.error(f"Couldn't copy files from HDFS: %s", e)
             logger.error(e.stderr)
@@ -143,8 +142,8 @@ def encrypt_and_upload_file(hsm_key_file, s3_bucket, s3_prefix, aws_default_regi
 
 def get_auditlog_list(start_date, src_hdfs_dir):
     logger.info(f"Finding all files to process, start_date: {start_date}")
-    # if start_date is not None:
-    #     logger.info("Excluding entries older than %s", start_date)
+    if start_date is not None:
+        logger.info("Excluding entries older than %s", start_date)
     try:
         process = subprocess.run(
             ["hdfs", "dfs", "-ls", "-C", src_hdfs_dir],
@@ -157,12 +156,12 @@ def get_auditlog_list(start_date, src_hdfs_dir):
         raise exc
     # skip the last line of output as it's always blank
     alldates = process.stdout.split("\n")[0:-1]
-    # if start_date is None:
-    #     dates = alldates
-    # else:
-    #     dates = filter(lambda hdfsdir: filter_date(hdfsdir, start_date), alldates)
+    if start_date is None:
+        dates = alldates
+    else:
+        dates = filter(lambda hdfsdir: filter_date(hdfsdir, start_date), alldates)
 
-    return alldates
+    return dates
 
 
 def copy_files_from_hdfs(hdfs_dir, tmp_dir):
