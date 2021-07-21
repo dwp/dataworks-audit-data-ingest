@@ -49,7 +49,7 @@ def main(
     # dates = get_auditlog_list(start_date, src_hdfs_dir)
     for coalesced_file in coalesced_auditlog_list():
         copy_files_from_hdfs(coalesced_file, tmp_dir)
-        tmp_file = f"{tmp_dir}/{coalesced_file}"
+        tmp_file = f"{tmp_dir}/{os.path.basename(coalesced_file)}"
         logger.info(f"Checking for existence of {tmp_file}, exists: {os.path.isfile(tmp_file)}")
     # for day in dates:
     #     try:
