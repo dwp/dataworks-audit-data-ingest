@@ -46,39 +46,39 @@ def main(
         processes,
         retries
 ):
-    # dates = get_auditlog_list(start_date, src_hdfs_dir)
-    for coalesced_file in coalesced_auditlog_list():
-        copy_files_from_hdfs(coalesced_file, tmp_dir)
-        tmp_file = f"{tmp_dir}/{os.path.basename(coalesced_file)}"
-        logger.info(f"Checking for existence of {tmp_file}, exists: {os.path.isfile(tmp_file)}")
-        hsm_key_file = b64decode(get_hsm_key(hsm_key_param_name, aws_default_region))
-        encrypt_and_upload_file(hsm_key_file, s3_bucket, s3_prefix, aws_default_region, tmp_dir, os.path.basename(coalesced_file), hsm_key_id, retries)
-    # for day in dates:
-    #     try:
-    #         if do_day(day):
-    #             logger.info(f"Processing {day} from {src_hdfs_dir}")
-    #             copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
-    #             logger.info(f"Uploading files in parallel from {tmp_dir}")
-    #             succeeded = encrypt_and_upload_files_parallel(
-    #                 tmp_dir,
-    #                 s3_bucket,
-    #                 s3_prefix,
-    #                 hsm_key_id,
-    #                 aws_default_region,
-    #                 hsm_key_param_name,
-    #                 processes,
-    #                 retries
-    #             )
-    #             clean_dir(tmp_dir)
-    #             if succeeded:
-    #                 update_progress_file(progress_file, day.split("/")[-1])
-    #             else:
-    #                 raise RuntimeError(f"Failed to process {day}")
-    #     except subprocess.CalledProcessError as e:
-    #         logger.error(f"Couldn't copy files from HDFS: %s", e)
-    #         logger.error(e.stderr)
-    #         logger.error(f"Skipping {day}")
-    #         update_progress_file(progress_file, day.split("/")[-1])
+    dates = get_auditlog_list(start_date, src_hdfs_dir)
+    # for coalesced_file in coalesced_auditlog_list():
+    #     copy_files_from_hdfs(coalesced_file, tmp_dir)
+    #     tmp_file = f"{tmp_dir}/{os.path.basename(coalesced_file)}"
+    #     logger.info(f"Checking for existence of {tmp_file}, exists: {os.path.isfile(tmp_file)}")
+    #     hsm_key_file = b64decode(get_hsm_key(hsm_key_param_name, aws_default_region))
+    #     encrypt_and_upload_file(hsm_key_file, s3_bucket, s3_prefix, aws_default_region, tmp_dir, os.path.basename(coalesced_file), hsm_key_id, retries)
+    for day in dates:
+        try:
+            if do_day(day):
+                logger.info(f"Processing {day} from {src_hdfs_dir}")
+                copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
+                logger.info(f"Uploading files in parallel from {tmp_dir}")
+                succeeded = encrypt_and_upload_files_parallel(
+                    tmp_dir,
+                    s3_bucket,
+                    s3_prefix,
+                    hsm_key_id,
+                    aws_default_region,
+                    hsm_key_param_name,
+                    processes,
+                    retries
+                )
+                clean_dir(tmp_dir)
+                if succeeded:
+                    update_progress_file(progress_file, day.split("/")[-1])
+                else:
+                    raise RuntimeError(f"Failed to process {day}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Couldn't copy files from HDFS: %s", e)
+            logger.error(e.stderr)
+            logger.error(f"Skipping {day}")
+            update_progress_file(progress_file, day.split("/")[-1])
 
 
 def update_progress_file(progress_file, completed_date):
@@ -87,7 +87,7 @@ def update_progress_file(progress_file, completed_date):
 
 
 def do_day(day: str) -> bool:
-    todo = ["2021-07-15", "2021-07-16", "2021-07-17", "2021-07-18"]
+    todo = ["2021-07-20", "2021-07-21"]
     return any([day.endswith(x) for x in todo])
 
 
