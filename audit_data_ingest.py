@@ -51,6 +51,8 @@ def main(
         copy_files_from_hdfs(coalesced_file, tmp_dir)
         tmp_file = f"{tmp_dir}/{os.path.basename(coalesced_file)}"
         logger.info(f"Checking for existence of {tmp_file}, exists: {os.path.isfile(tmp_file)}")
+        hsm_key_file = b64decode(get_hsm_key(hsm_key_param_name, aws_default_region))
+        encrypt_and_upload_file(hsm_key_file, s3_bucket, s3_prefix, aws_default_region, tmp_dir, os.path.basename(coalesced_file), hsm_key_id, retries)
     # for day in dates:
     #     try:
     #         if do_day(day):
