@@ -2,8 +2,8 @@ jobs:
   - name: production
     max_in_flight: 1
     plan:
-      - get: 12h
-        trigger: true
+#      - get: 12h
+#        trigger: true
       - get: dataworks-audit-data-ingest
         trigger: false
       - .: (( inject meta.plan.create-ssh-credentials ))
@@ -49,8 +49,8 @@ jobs:
   - name: equalities
     max_in_flight: 1
     plan:
-      - get: 12h
-        trigger: true
+#      - get: 12h
+#        trigger: true
       - get: dataworks-audit-data-ingest-equalities
         trigger: false
       - .: (( inject meta.plan.create-ssh-credentials-equalities ))
