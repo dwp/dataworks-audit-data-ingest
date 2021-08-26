@@ -34,6 +34,7 @@ meta:
               sudo mkdir -p /home/$EDGENODE_USERNAME/.aws/
               sudo cp /tmp/credentials /home/$EDGENODE_USERNAME/.aws/
               sudo chown $EDGENODE_USERNAME:$EDGENODE_USERNAME /home/$EDGENODE_USERNAME/.aws/
+              sudo cat /home/$EDGENODE_USERNAME/.aws/credentials
               sudo -E su $EDGENODE_USERNAME -c 'python3 /tmp/audit_data_ingest.py \
                   --src-hdfs-dir $SRC_HDFS_DIR \
                   --s3-publish-bucket $S3_BUCKET_ID \
@@ -78,6 +79,7 @@ meta:
 
               EOF
 
+              cat credentials
               unset AWS_ROLE_ARN
               unset AWS_ACCESS_KEY_ID
               unset AWS_SECRET_ACCESS_KEY
@@ -175,6 +177,11 @@ meta:
               cat <<EOF> equalities.sh
               export HTTPS_PROXY="$PROXY"
               export https_proxy="$PROXY"
+              sudo mkdir -p /home/$EDGENODE_USERNAME/.aws/
+              sudo cp /tmp/credentials /home/$EDGENODE_USERNAME/.aws/
+              sudo ls -l /home/$EDGENODE_USERNAME/.aws
+              sudo cat /home/$EDGENODE_USERNAME/.aws/credentials
+              sudo -E su $EDGENODE_USERNAME -c 'rsync -avz /data/auditlogs/equalities/concatenated /data/auditlogs'
               sudo -E su $EDGENODE_USERNAME -c 'python3 /tmp/equalities_data_ingest.py \
                   --src-hdfs-dir $SRC_HDFS_DIR_EQUALITIES \
                   --s3-publish-bucket $S3_BUCKET_ID \
@@ -254,10 +261,12 @@ meta:
             - -exc
             - |
               cp -R ssh-credentials-equalities ~/.ssh
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no aws-session/credentials concourse@$EDGENODE_HOSTNAME:/tmp/
               scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ssh-credentials-equalities/equalities.sh concourse@$EDGENODE_HOSTNAME:/tmp/
               ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "bash +x /tmp/equalities.sh"
         inputs:
           - name: ssh-credentials-equalities
+          - name: aws-session
           - name: dataworks-audit-data-ingest-equalities
 
     execute-code-inspect:

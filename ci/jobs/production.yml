@@ -66,6 +66,15 @@ jobs:
             SRC_HDFS_DIR_EQUALITIES: ((audit-ingest.src_hdfs_dir_equalities))
             AWS_DEFAULT_REGION: ((audit-ingest.aws_default_region))
 
+      - .: (( inject meta.plan.create-aws-credentials ))
+        config:
+          params:
+            AWS_ACCOUNT: ((audit-ingest.aws_prod_account))
+            AWS_ACCESS_KEY_ID: ((ci.aws_access_key_id))
+            AWS_SECRET_ACCESS_KEY: ((ci.aws_secret_access_key))
+            AWS_DEFAULT_REGION: ((audit-ingest.aws_default_region))
+            ASSUME_DURATION: 43200
+
       - .: (( inject meta.plan.deploy-code-equalities ))
         config:
           params:
