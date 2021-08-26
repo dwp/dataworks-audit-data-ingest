@@ -77,3 +77,29 @@ jobs:
           params:
             EDGENODE_HOSTNAME: ((audit-ingest.edgenode_hostname))
             EDGENODE_USERNAME: ((audit-ingest.edgenode_username))
+
+  - name: inspection
+    max_in_flight: 1
+    plan:
+#      - get: 12h
+#        trigger: true
+      - get: dataworks-audit-data-ingest-equalities
+        trigger: false
+      - .: (( inject meta.plan.inspect ))
+        config:
+          params:
+            SSH_PRIVATE_KEY: ((crown.private_key))
+            PROXY: ((audit-ingest.internet_proxy))
+            EDGENODE_USERNAME: ((audit-ingest.edgenode_username))
+            CLOUDHSM_KEY_ID: ((audit-ingest.cloudhsm_key_id))
+            HSM_KEY_PARAM_NAME: ((audit-ingest.hsm_key_param_name))
+            S3_BUCKET_ID: ((audit-ingest.s3_bucket_id))
+            S3_PREFIX_EQUALITIES: ((audit-ingest.s3_prefix_equalities))
+            SRC_HDFS_DIR_EQUALITIES: ((audit-ingest.src_hdfs_dir_equalities))
+            AWS_DEFAULT_REGION: ((audit-ingest.aws_default_region))
+
+      - .: (( inject meta.plan.execute-code-inspect ))
+        config:
+          params:
+            EDGENODE_HOSTNAME: ((audit-ingest.edgenode_hostname))
+            EDGENODE_USERNAME: ((audit-ingest.edgenode_username))

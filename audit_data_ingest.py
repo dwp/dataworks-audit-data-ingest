@@ -46,26 +46,22 @@ def main(
         processes,
         retries
 ):
-    dates = get_auditlog_list(start_date, src_hdfs_dir)
-    for day in dates:
-        logger.info(f"Processing {day} from {src_hdfs_dir}")
-        copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
-        logger.info(f"Uploading files in parallel from {tmp_dir}")
-        succeeded = encrypt_and_upload_files_parallel(
-            tmp_dir,
-            s3_bucket,
-            s3_prefix,
-            hsm_key_id,
-            aws_default_region,
-            hsm_key_param_name,
-            processes,
-            retries
-        )
-        clean_dir(tmp_dir)
-        if succeeded:
-            update_progress_file(progress_file, day.split("/")[-1])
-        else:
-            raise RuntimeError(f"Failed to process {day}")
+    logger.info(f"Uploading files in parallel from {tmp_dir}")
+    succeeded = encrypt_and_upload_files_parallel(
+        "/data/auditlogs/equalities/concatenated",
+        s3_bucket,
+        s3_prefix,
+        hsm_key_id,
+        aws_default_region,
+        hsm_key_param_name,
+        processes,
+        retries
+    )
+    clean_dir(tmp_dir)
+    if succeeded:
+        pass
+    else:
+        raise RuntimeError(f"Failed")
 
 
 def update_progress_file(progress_file, completed_date):
@@ -83,7 +79,7 @@ def encrypt_and_upload_files_parallel(tmp_dir, s3_bucket, s3_prefix, hsm_key_id,
         for root, _, files in os.walk(tmp_dir):
             for name in files:
                 logger.info(f"Submitting {name} to the executor")
-                future = executor.submit(encrypt_and_upload_file, hsm_key_file, s3_bucket, s3_prefix,
+                future = executor.submit(encrypt_and_upload_file, hsm_key_file, s3_bucket, "equalities/concatenated",
                                          aws_default_region,
                                          root, name, hsm_key_id, retries)
                 futures.append(future)
@@ -205,9 +201,10 @@ def get_hsm_key(hsm_key_param_name, aws_default_region):
 
 
 def clean_dir(tmp_dir):
-    if os.path.exists(tmp_dir):
-        logger.info("Cleaning temp_dir")
-        shutil.rmtree(tmp_dir)
+    pass
+    # if os.path.exists(tmp_dir):
+    #     logger.info("Cleaning temp_dir")
+    #     shutil.rmtree(tmp_dir)
 
 
 def find_start_date(progress_file):

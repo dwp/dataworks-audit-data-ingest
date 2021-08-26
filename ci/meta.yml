@@ -147,7 +147,6 @@ meta:
 
     create-ssh-credentials-equalities:
       task: create-ssh-credentials-equalities
-      attempts: 15
       config:
         platform: linux
         image_resource:
@@ -176,7 +175,42 @@ meta:
               cat <<EOF> equalities.sh
               export HTTPS_PROXY="$PROXY"
               export https_proxy="$PROXY"
-              sudo -E su $EDGENODE_USERNAME -c 'hdfs dfs -get /etl/uc/kafka/equality /data/auditlogs/equalities'
+              sudo -E su $EDGENODE_USERNAME -c 'mkdir /data/auditlogs/equalities/concatenated/'
+              sudo -E su $EDGENODE_USERNAME -c 'find /data/auditlogs/equalities/equality/2020* -type f | xargs -P1 cat > /data/auditlogs/equalities/concatenated/2020.jsonl'
+              sudo -E su $EDGENODE_USERNAME -c 'find /data/auditlogs/equalities/equality/2021* -type f | xargs -P1 cat > /data/auditlogs/equalities/concatenated/2021.jsonl'
+              EOF
+
+    inspect:
+      task: inspect
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli.repository))
+            version: ((docker-awscli.version))
+            tag: ((docker-awscli.version))
+        outputs:
+          - name: ssh-credentials-equalities
+        run:
+          path: sh
+          dir: ssh-credentials-equalities
+          args:
+            - -exc
+            - |
+              cat <<EOF> id_rsa
+              $SSH_PRIVATE_KEY
+              EOF
+              cat <<EOF> ./config
+              Host *
+                  User concourse
+                  StrictHostKeyChecking no
+              EOF
+              chmod 400 id_rsa
+              cat <<EOF> inspect.sh
+              export HTTPS_PROXY="$PROXY"
+              export https_proxy="$PROXY"
+              sudo -E su $EDGENODE_USERNAME -c 'ls -ltr /data/auditlogs/equalities/concatenated'
               EOF
 
     deploy-code-equalities:
@@ -217,6 +251,27 @@ meta:
               cp -R ssh-credentials-equalities ~/.ssh
               scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ssh-credentials-equalities/equalities.sh concourse@$EDGENODE_HOSTNAME:/tmp/
               ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "bash +x /tmp/equalities.sh"
+        inputs:
+          - name: ssh-credentials-equalities
+          - name: dataworks-audit-data-ingest-equalities
+
+    execute-code-inspect:
+      task: execute-code-inspect
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-awscli-ubuntu.repository))
+            tag: ((docker-awscli-ubuntu.version))
+        run:
+          path: sh
+          args:
+            - -exc
+            - |
+              cp -R ssh-credentials-equalities ~/.ssh
+              scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ssh-credentials-equalities/inspect.sh concourse@$EDGENODE_HOSTNAME:/tmp/
+              ssh -o StrictHostKeyChecking=no concourse@$EDGENODE_HOSTNAME "bash +x /tmp/inspect.sh"
         inputs:
           - name: ssh-credentials-equalities
           - name: dataworks-audit-data-ingest-equalities
