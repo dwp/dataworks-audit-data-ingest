@@ -181,7 +181,7 @@ meta:
                   --s3-prefix $S3_PREFIX_EQUALITIES \
                   --hsm-key-id $CLOUDHSM_KEY_ID \
                   --hsm-key-param-name $HSM_KEY_PARAM_NAME \
-                  --tmp /data/auditlogs/equalities \
+                  --tmp /data/auditlogs/equalities/equality \
                   --progress-file /home/$EDGENODE_USERNAME/equalities-data-progress.log'
               EOF
 
