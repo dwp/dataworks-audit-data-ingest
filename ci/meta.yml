@@ -181,15 +181,10 @@ meta:
               sudo cp /tmp/credentials /home/$EDGENODE_USERNAME/.aws/
               sudo ls -l /home/$EDGENODE_USERNAME/.aws
               sudo cat /home/$EDGENODE_USERNAME/.aws/credentials
-              sudo -E su $EDGENODE_USERNAME -c 'rsync -avz /data/auditlogs/equalities/concatenated /data/auditlogs'
-              sudo -E su $EDGENODE_USERNAME -c 'python3 /tmp/equalities_data_ingest.py \
-                  --src-hdfs-dir $SRC_HDFS_DIR_EQUALITIES \
-                  --s3-publish-bucket $S3_BUCKET_ID \
-                  --s3-prefix $S3_PREFIX_EQUALITIES \
-                  --hsm-key-id $CLOUDHSM_KEY_ID \
-                  --hsm-key-param-name $HSM_KEY_PARAM_NAME \
-                  --tmp /data/auditlogs/equalities/equality \
-                  --progress-file /home/$EDGENODE_USERNAME/equalities-data-progress.log'
+              sudo -E su $EDGENODE_USERNAME -c 'mkdir -p /data/auditlogs/concatenated'
+              sudo -E su $EDGENODE_USERNAME -c 'mv /tmp/2020.jsonl /data/auditlogs/concatenated'
+              sudo -E su $EDGENODE_USERNAME -c 'mv /tmp/2021.jsonl /data/auditlogs/concatenated'
+              sudo -E su $EDGENODE_USERNAME -c 'ls -ltr /data/auditlogs/concatenated'
               EOF
 
     inspect:
@@ -222,7 +217,7 @@ meta:
               cat <<EOF> inspect.sh
               export HTTPS_PROXY="$PROXY"
               export https_proxy="$PROXY"
-              sudo -E su $EDGENODE_USERNAME -c 'ls -ltr /data/auditlogs/equalities/concatenated'
+              sudo -E su $EDGENODE_USERNAME -c 'ls -ltr /data/auditlogs/equality'
               EOF
 
     deploy-code-equalities:
@@ -247,7 +242,6 @@ meta:
 
     execute-code-equalities:
       task: execute-code-equalities
-      attempts: 10
       config:
         platform: linux
         image_resource:
