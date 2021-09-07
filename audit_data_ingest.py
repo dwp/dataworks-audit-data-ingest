@@ -48,7 +48,7 @@ def main(
 ):
     logger.info(f"Uploading files in parallel from {tmp_dir}")
     succeeded = encrypt_and_upload_files_parallel(
-        "/tmp/coalesced",
+        "/tmp/patched",
         s3_bucket,
         s3_prefix,
         hsm_key_id,

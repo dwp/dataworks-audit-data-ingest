@@ -221,7 +221,8 @@ meta:
               cat <<EOF> inspect.sh
               export HTTPS_PROXY="$PROXY"
               export https_proxy="$PROXY"
-              sudo -E su $EDGENODE_USERNAME -c 'ls -ltr /tmp/coalesced'
+              sudo -E chown -R $EDGENODE_USERNAME.$EDGENODE_USERNAME /tmp/patched
+              sudo -E ls -ltr /tmp/patched
               EOF
 
     deploy-code-equalities:
