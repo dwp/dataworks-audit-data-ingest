@@ -221,8 +221,9 @@ meta:
               cat <<EOF> inspect.sh
               export HTTPS_PROXY="$PROXY"
               export https_proxy="$PROXY"
-              sudo -E chown -R $EDGENODE_USERNAME.$EDGENODE_USERNAME /tmp/patched
-              sudo -E ls -ltr /tmp/patched
+              sudo -E su $EDGENODE_USERNAME -c 'mkdir /tmp/renewed'
+              sudo -E su $EDGENODE_USERNAME -c 'find /data/auditlogs/equality/2021* -type f | xargs -P1 cat > /tmp/renewed/2021.json'
+              sudo -E su $EDGENODE_USERNAME -c 'find /data/auditlogs/equality/2021* -type f | xargs -P1 cat > /tmp/renewed/2021.json'
               EOF
 
     deploy-code-equalities:
