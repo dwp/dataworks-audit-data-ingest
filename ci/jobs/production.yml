@@ -4,7 +4,7 @@ jobs:
     plan:
       - get: 12h
         trigger: true
-      - get: dataworks-audit-data-ingest
+      - get: dataworks-audit-data-ingest-failed-dates
         trigger: false
       - .: (( inject meta.plan.create-ssh-credentials ))
         config:

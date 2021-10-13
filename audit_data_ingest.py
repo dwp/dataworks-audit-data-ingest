@@ -47,7 +47,7 @@ def main(
         retries
 ):
     dates = get_auditlog_list(start_date, src_hdfs_dir)
-    for day in dates:
+    for day in ['2019-09-29']:
         logger.info(f"Processing {day} from {src_hdfs_dir}")
         copy_files_from_hdfs(f"{os.path.join(src_hdfs_dir, day)}", tmp_dir)
         logger.info(f"Uploading files in parallel from {tmp_dir}")
