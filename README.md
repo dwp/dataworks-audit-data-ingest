@@ -1,3 +1,5 @@
+# DO NOT USE THIS REPO - MIGRATED TO GITLAB
+
 # dataworks-audit-data-ingest
 
 ## Ingest encrypted UC Kafka audit data into S3
